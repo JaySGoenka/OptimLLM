@@ -1,0 +1,10 @@
+{
+  "name": "optimllm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser-first model router for local Ollama and free-tier cloud models.",
+  "scripts": {
+    "dev": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "check:json": "python3 -m json.tool data/model-capabilities.json > /dev/null"
+  }
+}

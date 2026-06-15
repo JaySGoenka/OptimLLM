@@ -1,63 +1,178 @@
 # OptimLLM
 
-OptimLLM is a browser-first model router. Phase 1 runs as a static web app and focuses on model metadata, local Ollama detection, local model installation, and local chat testing.
+OptimLLM is an experimental model router for reducing AI cost and improving model selection.
 
-## Why This Shape
+The long-term goal is simple: a user should describe what they need, and OptimLLM should choose the best available model for that request. Simple or private tasks can run on a local model when the user's machine can handle them. More complex tasks can be sent to a stronger cloud model when needed. The project is intended to optimize model choice, token usage, cost, privacy, and latency without requiring the user to understand every model option.
 
-The project is designed to deploy on Vercel as a web app. Vercel can host the UI for free, but it cannot reach a user's local Ollama server from the cloud. Local model calls must happen from the user's browser to `http://localhost:11434`, or through a small local companion app later if browser CORS becomes a blocker.
+The current version is an early implementation of that routing foundation. Users can manually choose between supported local and cloud models, test chat behavior, install local Ollama models, and compare route metadata such as provider, privacy level, strengths, limits, and cost.
 
-Cloud providers such as Groq and Google AI Studio should be called through serverless API routes in a later phase. API keys should never be placed in frontend JavaScript.
+## Vision
 
-## Project Files
+OptimLLM is being built toward automatic model selection.
 
-- `index.html` contains the app shell and UI landmarks.
-- `src/app.js` loads the model database, detects Ollama, pulls local models, and sends local chat requests.
-- `src/styles.css` styles the app without a framework dependency.
-- `data/model-capabilities.json` is the model routing database.
-- `vercel.json` configures clean static hosting.
+Eventually, the app should evaluate:
 
-## Run Locally
+- the complexity of the user's request
+- the models available locally
+- the user's system capabilities
+- privacy requirements
+- expected token usage
+- cloud model cost and rate limits
+- model strengths and weaknesses
+
+Based on those signals, OptimLLM should route each request to the cheapest capable model instead of always using the largest or most expensive one.
+
+For example:
+
+- A short summary or simple explanation could run locally.
+- A private prompt could stay on the user's machine.
+- A harder reasoning or coding task could use a stronger cloud model.
+- A low-priority task could use a cheaper route when speed is less important.
+
+## Current Features
+
+- Local Ollama model detection.
+- Local Ollama model installation.
+- Local Ollama chat.
+- Cloud chat through Groq.
+- Cloud chat through Google AI Studio.
+- Shared chat history for local and cloud models during the current browser session.
+- Model metadata for route type, provider, privacy level, cost, strengths, and limits.
+- Manual model selection while automatic routing is still under development.
+
+## How It Works
+
+In the current version, the user selects a model route manually.
+
+The app shows available route candidates and labels whether each model is local or cloud-based. Local routes use Ollama on the user's computer. Cloud routes use Groq or Google AI Studio. The chat panel works with both route types, so users can test how different models respond from the same interface.
+
+Local models are useful when privacy, offline usage, or zero cloud cost matters. Cloud models are useful when the task needs more capability, faster hosted inference, or a model that is not available on the user's machine.
+
+## Supported Models
+
+The model list is stored in `data/model-capabilities.json`.
+
+Current local Ollama routes:
+
+- `llama3.2:3b`
+- `qwen2.5:3b`
+- `qwen2.5-coder:7b`
+
+Current cloud routes:
+
+- `llama-3.1-8b-instant` through Groq
+- `qwen/qwen3-32b` through Groq
+- `gemini-3.5-flash` through Google AI Studio
+
+## Requirements
+
+- Node.js
+- npm
+- Ollama, for local model chat
+- Groq API key, for Groq cloud models
+- Google AI Studio API key, for Gemini cloud models
+
+Cloud API keys are optional if only local Ollama models are used.
+
+## Local Setup
+
+Install dependencies if needed:
+
+```bash
+npm install
+```
+
+Create `.env.local` in the project root for cloud model access:
+
+```env
+GROQ_API_KEY=your_groq_key_here
+GOOGLE_AI_API_KEY=your_google_ai_studio_key_here
+```
+
+Start the app:
 
 ```bash
 npm run dev
 ```
 
-Then open:
+Open:
 
 ```txt
 http://localhost:5173
 ```
 
-The local Ollama panel expects Ollama to be running at:
+## Using Local Models
 
-```txt
-http://localhost:11434
+Start Ollama before using local models:
+
+```bash
+ollama serve
 ```
 
-## Phase 1 Scope
+In the app:
 
-Completed:
+1. Select the `Local` filter or choose an Ollama route.
+2. Click `Refresh Local Models`.
+3. If the selected model is not installed, click `Install Selected Local Model`.
+4. Send a message in the chat panel.
 
-- Static deployable web app.
-- Model database with local and cloud route metadata.
-- Ollama online/offline detection.
-- Installed local model detection through `/api/tags`.
-- Local model installation through `/api/pull`.
-- Local model chat through `/api/chat`.
+## Using Cloud Models
 
-Not included yet:
+Add the required API key to `.env.local`, then run:
 
-- Groq serverless API route.
-- Google AI Studio serverless API route.
-- User accounts or persistence.
-- Local companion app for machines where direct browser-to-Ollama calls are blocked.
+```bash
+npm run dev
+```
 
-## Notes For Local Models
+In the app:
 
-The database stores local models as supported routes, not as models currently installed on one device. If a supported model is missing, the UI can ask Ollama to pull it.
+1. Select the `Cloud` filter or choose a cloud route.
+2. Send a message in the chat panel.
 
-Recommended Phase 1 local routes:
+Cloud model requests go through `/api/chat`; API keys are not stored in frontend JavaScript.
 
-- `llama3.2:3b` for lightweight private tasks.
-- `qwen2.5:3b` for general local reasoning.
-- `qwen2.5-coder:7b` for local coding help.
+## npm Scripts
+
+- `npm run dev` starts the local Node dev server with static file serving and `/api/chat`.
+- `npm run dev:static` starts a static file server for the frontend only.
+- `npm run dev:vercel` starts the app with Vercel's local development server.
+- `npm run check:json` validates `data/model-capabilities.json`.
+
+## Project Structure
+
+```txt
+api/chat.js                    Cloud chat API route
+data/model-capabilities.json   Model and route metadata
+index.html                     App markup
+scripts/dev-server.js          Local development server
+src/app.js                     Browser app logic
+src/styles.css                 App styles
+vercel.json                    Vercel configuration
+```
+
+## Deployment
+
+The project is configured for Vercel.
+
+For cloud models, add these environment variables in the Vercel project settings:
+
+```txt
+GROQ_API_KEY
+GOOGLE_AI_API_KEY
+```
+
+Local Ollama models require Ollama to be running on the user's own machine.
+
+## Status
+
+Implemented so far:
+
+- Phase 1: local Ollama discovery, install, and chat.
+- Phase 2: Groq and Google AI Studio cloud chat through `/api/chat`.
+
+Not implemented yet:
+
+- User accounts.
+- Persistent chat history.
+- Automatic task-based route selection.
+- Local companion app.

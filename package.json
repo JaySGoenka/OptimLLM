@@ -4,7 +4,9 @@
   "private": true,
   "description": "A browser-first model router for local Ollama and free-tier cloud models.",
   "scripts": {
-    "dev": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "dev": "node scripts/dev-server.js",
+    "dev:static": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "dev:vercel": "vercel dev",
     "check:json": "python3 -m json.tool data/model-capabilities.json > /dev/null"
   }
 }

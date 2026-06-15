@@ -84,9 +84,9 @@
       "cost": 0
     },
     {
-      "id": "gemini-3-flash",
+      "id": "gemini-3.5-flash",
       "provider": "google_ai_studio",
-      "display_name": "Gemini 3 Flash",
+      "display_name": "Gemini 3.5 Flash",
       "route_name": "cloud_google_text",
       "local": false,
       "enabled": true,

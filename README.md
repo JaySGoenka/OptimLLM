@@ -163,6 +163,22 @@ GOOGLE_AI_API_KEY
 
 Local Ollama models require Ollama to be running on the user's own machine.
 
+When someone opens the Vercel URL, local routes still use that person's own
+computer. The Vercel server cannot install Ollama, start Ollama, or access
+models on your laptop. The browser can connect to `http://localhost:11434` only
+after the user has Ollama installed and running locally.
+
+If a deployed Vercel URL cannot reach local Ollama, the user may need to allow
+that web origin in Ollama. The app shows a copyable Vercel access command using
+the current page origin, for example:
+
+```bash
+OLLAMA_ORIGINS="https://your-app.vercel.app" ollama serve
+```
+
+After Ollama is reachable, the app can download supported local models through
+Ollama and chat with them from the shared Vercel page.
+
 ## Status
 
 Implemented so far:

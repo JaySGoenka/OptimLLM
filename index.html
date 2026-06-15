@@ -29,39 +29,52 @@
 
           <div class="local-controls">
             <button id="refreshOllamaButton" type="button">Refresh Local Models</button>
-            <button id="pullModelButton" type="button">Install Selected Local Model</button>
+            <button id="pullModelButton" type="button">Download Selected Local Model</button>
           </div>
 
           <pre id="pullLog" class="log-panel" aria-live="polite"></pre>
+
+          <details class="local-setup" open>
+            <summary>Local Ollama setup</summary>
+            <div class="setup-grid">
+              <div>
+                <span class="setup-label">App origin</span>
+                <code id="appOriginLabel"></code>
+              </div>
+              <div>
+                <span class="setup-label">Local endpoint</span>
+                <code>http://localhost:11434</code>
+              </div>
+            </div>
+            <div class="setup-actions">
+              <a class="button-link" href="https://ollama.com/download" target="_blank" rel="noreferrer">Get Ollama</a>
+              <button id="copyStartCommandButton" type="button">Copy Start Command</button>
+              <button id="copyCorsCommandButton" type="button">Copy Vercel Access Command</button>
+            </div>
+            <pre id="setupCommand" class="command-panel"></pre>
+          </details>
+
+          <div class="model-list-wrap" aria-label="Available models">
+            <div class="model-list-header">
+              <h2>Models</h2>
+              <span>Route candidates</span>
+            </div>
+            <div id="modelTableBody" class="model-list"></div>
+          </div>
         </aside>
 
         <section class="main-panel">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>Route</th>
-                  <th>Privacy</th>
-                  <th>Cost</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="modelTableBody"></tbody>
-            </table>
-          </div>
-
-          <section class="chat-panel" aria-label="Local chat test">
+          <section class="chat-panel" aria-label="Model chat">
             <div class="chat-header">
               <div>
-                <h2>Local Chat Test</h2>
+                <h2>Model Chat</h2>
                 <p id="selectedModelSummary"></p>
               </div>
               <button id="clearChatButton" type="button">Clear</button>
             </div>
             <div id="messages" class="messages" aria-live="polite"></div>
             <form id="chatForm" class="composer">
-              <textarea id="promptInput" rows="3" placeholder="Ask the selected local model something"></textarea>
+              <textarea id="promptInput" rows="3" placeholder="Ask the selected model something"></textarea>
               <button type="submit">Send</button>
             </form>
           </section>

@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "labels": {
+    "task_type": ["coding", "summarization", "reasoning", "math", "creative", "simple_qa", "data_analysis", "translation", "planning"],
+    "difficulty": ["easy", "medium", "hard"],
+    "privacy": ["low", "medium", "high"],
+    "route_class": ["local_tiny", "local_general", "local_coder", "local_reasoning", "cloud_fast", "cloud_strong", "cloud_long_context"]
+  },
+  "examples": [
+    {
+      "text": "What does a reverse proxy do? Keep the answer short.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Explain the difference between a token and a cookie in simple terms.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Summarize this public release announcement in two bullets.",
+      "task_type": "summarization",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Make this short paragraph clearer without changing its meaning.",
+      "task_type": "summarization",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Summarize these internal support notes that include customer phone numbers.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Rewrite this private email thread with employee names into a concise update.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Translate this public event description into Spanish.",
+      "task_type": "translation",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Translate this confidential immigration letter into French.",
+      "task_type": "translation",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Give me eight playful names for a note taking app.",
+      "task_type": "creative",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Draft three polished versions of a product launch email.",
+      "task_type": "creative",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Classify these bug reports by severity and likely owner.",
+      "task_type": "data_analysis",
+      "difficulty": "medium",
+      "privacy": "medium",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Analyze this conversion funnel export and identify statistically meaningful dropoffs.",
+      "task_type": "data_analysis",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Debug this React component that rerenders forever.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Write unit tests for this small Python parser.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Fix this internal billing webhook that includes customer IDs.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Trace a performance regression across our queue workers, database writes, and API gateway.",
+      "task_type": "coding",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Check this algebra derivation and point out the first mistake.",
+      "task_type": "math",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Solve this advanced probability proof and explain each assumption.",
+      "task_type": "math",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Reason through whether this pricing strategy could backfire.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Review this private legal argument and identify weak points locally.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "high",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Create a simple plan for studying JavaScript over the next two weeks.",
+      "task_type": "planning",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Build a launch plan for migrating a large enterprise customer base to a new auth system.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Analyze this long board packet and extract decisions, risks, owners, and unresolved questions.",
+      "task_type": "summarization",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Turn this long public technical design document into milestones and open questions.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Explain this bank notice with my account number and address in plain English.",
+      "task_type": "reasoning",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "I accidentally pasted a GitHub token into chat. What should I do next?",
+      "task_type": "simple_qa",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Compare the strengths and risks of using a serverless database for a new SaaS product.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Generate a short SQL query that counts active users by week.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Extract themes from these customer interviews and mark which ones mention pricing.",
+      "task_type": "data_analysis",
+      "difficulty": "medium",
+      "privacy": "medium",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Translate this private doctor's discharge instruction into Spanish.",
+      "task_type": "translation",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Write a vivid scene opening for a short science fiction story.",
+      "task_type": "creative",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Summarize this 30 page research report and list methods, findings, and caveats.",
+      "task_type": "summarization",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_long_context"
+    }
+  ]
+}

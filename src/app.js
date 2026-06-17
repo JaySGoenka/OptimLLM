@@ -10,7 +10,9 @@ const ROUTER_STOP_WORDS = new Set([
 const ROUTER_PRIVACY_TERMS = [
   "private", "confidential", "secret", "password", "api key", "token", "ssn",
   "social security", "medical", "diagnosis", "bank", "credit card", "personal",
-  "address", "phone number", "email", "legal", "contract", "customer", "journal"
+  "address", "phone number", "email", "legal", "contract", "customer", "journal",
+  "salary", "payroll", "invoice", "tax", "passport", "driver license", "patient",
+  "therapy", "insurance", "proprietary", "internal", "nda", "employee"
 ];
 const ROUTER_CODING_TERMS = [
   "code", "function", "debug", "bug", "javascript", "typescript", "python",
@@ -19,8 +21,19 @@ const ROUTER_CODING_TERMS = [
 const ROUTER_COMPLEX_TERMS = [
   "architecture", "multi-step", "deep", "detailed", "optimize", "tradeoff",
   "compare", "reason", "reasoning", "proof", "math", "logic", "design",
-  "strategy", "analyze", "implement end to end", "scalable", "distributed"
+  "strategy", "analyze", "implement end to end", "scalable", "distributed",
+  "root cause", "performance", "migration", "system design", "security review",
+  "research paper", "long transcript", "requirements", "roadmap", "dependencies"
 ];
+const ROUTER_TASK_FEATURES = {
+  summary: ["summarize", "summary", "rewrite", "shorter", "condense", "extract action items", "meeting notes", "transcript"],
+  translation: ["translate", "translation", "spanish", "french", "german", "italian", "preserve terminology"],
+  creative: ["write", "draft", "brainstorm", "story", "poem", "tagline", "marketing", "copy", "announcement", "subject line"],
+  data: ["csv", "data", "dataset", "table", "metrics", "trends", "anomalies", "cohort", "sentiment", "classify", "categorize"],
+  planning: ["plan", "roadmap", "milestones", "strategy", "dependencies", "launch", "schedule", "checklist", "migration plan"],
+  math: ["math", "algebra", "proof", "equation", "probability", "statistics", "calculation", "logic puzzle", "optimization problem"],
+  reasoning: ["reason", "analyze", "compare", "evaluate", "tradeoff", "pros and cons", "risks", "weak points", "argument"]
+};
 
 // This state object is the single source of truth for the current UI.
 const state = {
@@ -554,11 +567,14 @@ function resolveChatRoute(prompt) {
 function selectAutoRoute(prompt) {
   const signals = analyzePrompt(prompt);
   const installedLocalModels = getCompatibleInstalledLocalModels();
+  const anyInstalledLocalModels = getInstalledLocalModels();
   const cloudModels = state.models.filter((model) => model.enabled && !model.local);
 
   if (signals.private && installedLocalModels.length === 0) {
     return {
-      error: "Auto Router detected private-looking content, but no local Ollama model is installed. Install a local model or manually choose a cloud route if you want to send this prompt to cloud."
+      error: anyInstalledLocalModels.length > 0
+        ? "Auto Router detected private-looking content, but the installed local models do not match the current hardware profile. Install a smaller local model or manually choose a cloud route if you want to send this prompt to cloud."
+        : "Auto Router detected private-looking content, but no local Ollama model is installed. Install a local model or manually choose a cloud route if you want to send this prompt to cloud."
     };
   }
 
@@ -580,10 +596,12 @@ function selectAutoRoute(prompt) {
     };
   }
 
-  if (signals.coding && !signals.complex && hasInstalledModel("qwen2.5-coder:7b")) {
+  const compatibleCoder = installedLocalModels.find((model) => model.id === "qwen2.5-coder:7b");
+
+  if (signals.coding && !signals.complex && compatibleCoder) {
     return {
       auto: true,
-      model: getModelById("qwen2.5-coder:7b"),
+      model: compatibleCoder,
       reason: `${describeRouterSignals(signals)} The local coding model is installed.`
     };
   }
@@ -622,16 +640,21 @@ function analyzePrompt(prompt) {
     return rules;
   }
 
+  const taskType = prediction.task_type.label;
+  const difficulty = strongerDifficulty(rules.difficulty, prediction.difficulty.label);
+  const privacy = strongerPrivacy(rules.privacy, prediction.privacy.label);
+  const routeClass = deriveRouteClass(taskType, difficulty, privacy, rules, prediction.route_class.label);
+
   return {
     ...rules,
-    private: prediction.privacy.label === "high" || rules.private,
-    coding: prediction.task_type.label === "coding",
-    complex: prediction.difficulty.label === "hard" || rules.longPrompt,
-    simple: prediction.difficulty.label === "easy" && !rules.longPrompt,
-    taskType: prediction.task_type.label,
-    difficulty: prediction.difficulty.label,
-    privacy: rules.private ? "high" : prediction.privacy.label,
-    routeClass: prediction.route_class.label,
+    private: privacy === "high",
+    coding: taskType === "coding" || rules.coding,
+    complex: difficulty === "hard" || rules.longPrompt,
+    simple: difficulty === "easy" && !rules.longPrompt,
+    taskType,
+    difficulty,
+    privacy,
+    routeClass,
     confidence: averageConfidence(prediction),
     source: "ml"
   };
@@ -639,21 +662,6 @@ function analyzePrompt(prompt) {
 
 function analyzePromptRules(prompt) {
   const text = prompt.toLowerCase();
-
-  const privateTerms = [
-    "private", "confidential", "secret", "password", "api key", "token", "ssn",
-    "social security", "medical", "diagnosis", "bank", "credit card", "personal",
-    "address", "phone number", "email", "legal", "contract"
-  ];
-  const codingTerms = [
-    "code", "function", "debug", "bug", "javascript", "typescript", "python",
-    "react", "node", "api", "sql", "stack trace", "refactor", "component"
-  ];
-  const complexTerms = [
-    "architecture", "multi-step", "deep", "detailed", "optimize", "tradeoff",
-    "compare", "reason", "reasoning", "proof", "math", "logic", "design",
-    "strategy", "analyze", "implement end to end"
-  ];
   const simpleTerms = [
     "summarize", "rewrite", "classify", "explain", "translate", "short", "quick",
     "simple", "list", "outline"
@@ -661,16 +669,18 @@ function analyzePromptRules(prompt) {
 
   const hasAny = (terms) => terms.some((term) => text.includes(term));
   const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const privacy = scorePromptPrivacy(prompt);
+  const difficulty = scorePromptDifficulty(prompt, wordCount);
 
   return {
-    private: hasAny(privateTerms),
-    coding: hasAny(codingTerms),
-    complex: hasAny(complexTerms) || wordCount > 180,
-    simple: hasAny(simpleTerms) || wordCount < 60,
+    private: privacy.label === "high",
+    coding: hasAny(ROUTER_CODING_TERMS),
+    complex: difficulty.label === "hard",
+    simple: difficulty.label === "easy" || hasAny(simpleTerms),
     longPrompt: prompt.length > 1600,
-    taskType: hasAny(codingTerms) ? "coding" : "unknown",
-    difficulty: hasAny(complexTerms) || wordCount > 180 ? "hard" : "easy",
-    privacy: hasAny(privateTerms) ? "high" : "low",
+    taskType: hasAny(ROUTER_CODING_TERMS) ? "coding" : "unknown",
+    difficulty: difficulty.label,
+    privacy: privacy.label,
     routeClass: null,
     confidence: null,
     source: "rules"
@@ -678,7 +688,7 @@ function analyzePromptRules(prompt) {
 }
 
 function predictPromptWithRouterModel(prompt) {
-  if (!state.routerModel?.classifiers) {
+  if (!state.routerModel?.classifiers && !state.routerModel?.centroid_classifiers) {
     return null;
   }
 
@@ -686,7 +696,7 @@ function predictPromptWithRouterModel(prompt) {
   const prediction = {};
 
   for (const target of state.routerModel.targets) {
-    prediction[target] = predictTarget(tokens, state.routerModel.classifiers[target]);
+    prediction[target] = predictTargetHybrid(tokens, state.routerModel.classifiers[target], state.routerModel.centroid_classifiers?.[target]);
   }
 
   return prediction;
@@ -741,6 +751,12 @@ function tokenizeForRouter(text) {
     tokens.push("feature:complex", "feature:complex");
   }
 
+  for (const [featureName, terms] of Object.entries(ROUTER_TASK_FEATURES)) {
+    if (containsAny(normalized, terms)) {
+      tokens.push(`feature:${featureName}`, `feature:${featureName}`);
+    }
+  }
+
   if (words.length < 12) {
     tokens.push("feature:short_prompt");
   } else if (words.length > 80) {
@@ -754,8 +770,137 @@ function containsAny(text, terms) {
   return terms.some((term) => text.includes(term));
 }
 
+function scorePromptPrivacy(prompt) {
+  const text = prompt.toLowerCase();
+  let score = 0;
+
+  if (containsAny(text, ROUTER_PRIVACY_TERMS)) score += 3;
+  if (/\b\d{3}-\d{2}-\d{4}\b/.test(text)) score += 5;
+  if (/\b(?:\d[ -]*?){13,16}\b/.test(text)) score += 5;
+  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(prompt)) score += 3;
+  if (/\b(?:sk-|pk_|ghp_|xoxb-|AIza)[a-z0-9_\-]{12,}/i.test(prompt)) score += 5;
+  if (/\b(my|our|internal|confidential|customer|client|patient|employee)\b/.test(text)) score += 1;
+  if (/\b(address|phone|medical|legal|contract|bank|tax|invoice|salary)\b/.test(text)) score += 2;
+
+  if (score >= 5) return { label: "high", score };
+  if (score >= 2) return { label: "medium", score };
+  return { label: "low", score };
+}
+
+function scorePromptDifficulty(prompt, wordCount) {
+  const text = prompt.toLowerCase();
+  let score = 0;
+
+  if (wordCount > 180 || prompt.length > 1600) score += 4;
+  else if (wordCount > 70 || prompt.length > 700) score += 2;
+
+  if (containsAny(text, ROUTER_COMPLEX_TERMS)) score += 3;
+  if (/\b(step by step|tradeoffs?|root cause|architecture|migration|proof|optimi[sz]e|debug|refactor)\b/.test(text)) score += 2;
+  if (/\b(across|multiple|end to end|large|scalable|distributed|security|performance)\b/.test(text)) score += 2;
+  if (/\b(short|quick|simple|one sentence|briefly|list|define)\b/.test(text)) score -= 2;
+  if (containsAny(text, ROUTER_CODING_TERMS) && /\b(debug|refactor|stack trace|tests?|endpoint|database)\b/.test(text)) score += 1;
+
+  if (score >= 5) return { label: "hard", score };
+  if (score >= 2) return { label: "medium", score };
+  return { label: "easy", score };
+}
+
+function strongerPrivacy(ruleLabel, modelLabel) {
+  const rank = { low: 0, medium: 1, high: 2 };
+  return rank[ruleLabel] >= rank[modelLabel] ? ruleLabel : modelLabel;
+}
+
+function strongerDifficulty(ruleLabel, modelLabel) {
+  const rank = { easy: 0, medium: 1, hard: 2 };
+  return rank[ruleLabel] >= rank[modelLabel] ? ruleLabel : modelLabel;
+}
+
+function deriveRouteClass(taskType, difficulty, privacy, rules, modelRouteClass) {
+  if (privacy === "high") {
+    if (taskType === "coding" || rules.coding) return "local_coder";
+    if (difficulty === "hard" || taskType === "math" || taskType === "reasoning") return "local_reasoning";
+    return "local_general";
+  }
+
+  if (rules.longPrompt || modelRouteClass === "cloud_long_context") {
+    return "cloud_long_context";
+  }
+
+  if (taskType === "coding") {
+    return difficulty === "hard" ? "cloud_strong" : "local_coder";
+  }
+
+  if (taskType === "math" || taskType === "reasoning") {
+    return difficulty === "hard" ? "cloud_strong" : "local_reasoning";
+  }
+
+  if (taskType === "planning") {
+    return difficulty === "hard" ? "cloud_strong" : "cloud_fast";
+  }
+
+  if (taskType === "data_analysis") {
+    return difficulty === "hard" ? "cloud_strong" : "local_general";
+  }
+
+  if (difficulty === "easy") {
+    return "local_tiny";
+  }
+
+  if (taskType === "creative" || taskType === "translation") {
+    return "cloud_fast";
+  }
+
+  return modelRouteClass ?? "local_general";
+}
+
+function predictTargetHybrid(tokens, classifier, centroidClassifier) {
+  if (!centroidClassifier) {
+    return predictTarget(tokens, classifier);
+  }
+
+  const naiveBayesWeight = classifier ? state.routerModel?.ensemble?.naive_bayes_weight ?? 0.15 : 0;
+  const centroidWeight = state.routerModel?.ensemble?.centroid_weight ?? 1;
+  const centroidScores = scoreCentroidTarget(tokens, centroidClassifier);
+  const centroidProbabilities = scoresToProbabilities(centroidScores, 0.18);
+  const byLabel = new Map();
+
+  if (classifier && naiveBayesWeight > 0) {
+    const naiveBayesScores = scoreNaiveBayesTarget(tokens, classifier);
+    const naiveBayesProbabilities = scoresToProbabilities(naiveBayesScores);
+
+    for (const item of naiveBayesProbabilities) {
+      byLabel.set(item.label, (byLabel.get(item.label) ?? 0) + item.confidence * naiveBayesWeight);
+    }
+  }
+
+  for (const item of centroidProbabilities) {
+    byLabel.set(item.label, (byLabel.get(item.label) ?? 0) + item.confidence * centroidWeight);
+  }
+
+  const scores = Array.from(byLabel.entries())
+    .map(([label, confidence]) => ({ label, confidence }))
+    .sort((left, right) => right.confidence - left.confidence);
+
+  return {
+    label: scores[0].label,
+    confidence: scores[0].confidence,
+    alternatives: scores.slice(1, 3)
+  };
+}
+
 function predictTarget(tokens, classifier) {
-  const scores = classifier.labels.map((label) => {
+  const scores = scoreNaiveBayesTarget(tokens, classifier);
+  const probabilities = scoresToProbabilities(scores);
+
+  return {
+    label: probabilities[0].label,
+    confidence: probabilities[0].confidence,
+    alternatives: probabilities.slice(1, 3)
+  };
+}
+
+function scoreNaiveBayesTarget(tokens, classifier) {
+  return classifier.labels.map((label) => {
     const classModel = classifier.classes[label];
     let score = classModel.log_prior;
 
@@ -764,25 +909,61 @@ function predictTarget(tokens, classifier) {
     }
 
     return { label, score };
-  });
-
-  scores.sort((left, right) => right.score - left.score);
-  const confidence = softmaxConfidence(scores, scores[0].score);
-
-  return {
-    label: scores[0].label,
-    confidence,
-    alternatives: scores.slice(1, 3).map((item) => ({
-      label: item.label,
-      confidence: softmaxConfidence(scores, item.score)
-    }))
-  };
+  }).sort((left, right) => right.score - left.score);
 }
 
-function softmaxConfidence(scores, score) {
+function scoreCentroidTarget(tokens, classifier) {
+  const vector = vectorizeRouterTokens(tokens, classifier.idf);
+
+  return classifier.labels.map((label) => {
+    const centroid = classifier.classes[label].centroid;
+    let score = 0;
+
+    for (const [token, value] of Object.entries(vector)) {
+      score += value * (centroid[token] ?? 0);
+    }
+
+    return { label, score };
+  }).sort((left, right) => right.score - left.score);
+}
+
+function vectorizeRouterTokens(tokens, idf) {
+  const counts = {};
+
+  for (const token of tokens) {
+    if (idf[token] === undefined) continue;
+    counts[token] = (counts[token] ?? 0) + 1;
+  }
+
+  const vector = {};
+
+  for (const [token, count] of Object.entries(counts)) {
+    vector[token] = (1 + Math.log(count)) * idf[token];
+  }
+
+  const norm = Math.sqrt(Object.values(vector).reduce((sum, value) => sum + value * value, 0));
+
+  if (!norm) {
+    return {};
+  }
+
+  for (const token of Object.keys(vector)) {
+    vector[token] /= norm;
+  }
+
+  return vector;
+}
+
+function scoresToProbabilities(scores, temperature = 1) {
   const maxScore = Math.max(...scores.map((item) => item.score));
-  const denominator = scores.reduce((sum, item) => sum + Math.exp(item.score - maxScore), 0);
-  return Math.exp(score - maxScore) / denominator;
+  const denominator = scores.reduce((sum, item) => sum + Math.exp((item.score - maxScore) / temperature), 0);
+
+  return scores
+    .map((item) => ({
+      label: item.label,
+      confidence: Math.exp((item.score - maxScore) / temperature) / denominator
+    }))
+    .sort((left, right) => right.confidence - left.confidence);
 }
 
 function averageConfidence(prediction) {
@@ -806,25 +987,26 @@ function getInstalledLocalModels() {
 function getCompatibleInstalledLocalModels() {
   const localModels = getInstalledLocalModels();
 
-  if (!state.systemProfile?.memory?.total_gb) {
+  if (!state.systemProfile) {
     return localModels;
   }
 
-  const totalRamGb = state.systemProfile.memory.total_gb;
-  const compatibleModels = localModels.filter((model) => {
-    const minRamGb = model.hardware?.min_ram_gb ?? 0;
-    return minRamGb <= totalRamGb;
-  });
-
-  return compatibleModels.length > 0 ? compatibleModels : localModels;
+  return localModels.filter(isModelCompatibleWithSystemProfile);
 }
 
-function hasInstalledModel(modelId) {
-  return state.installedLocalModels.has(modelId);
-}
+function isModelCompatibleWithSystemProfile(model) {
+  const totalRamGb = state.systemProfile?.memory?.total_gb;
+  const minRamGb = model.hardware?.min_ram_gb ?? 0;
 
-function getModelById(modelId) {
-  return state.models.find((model) => model.id === modelId);
+  if (typeof totalRamGb === "number" && minRamGb > totalRamGb) {
+    return false;
+  }
+
+  if (model.hardware?.gpu_required && !state.systemProfile?.gpu?.detected) {
+    return false;
+  }
+
+  return true;
 }
 
 function pickLocalModel(localModels, signals) {

@@ -10,6 +10,6 @@
     "train:router:js": "node scripts/train-router.js",
     "dev:static": "python3 -m http.server 5173 --bind 127.0.0.1",
     "dev:vercel": "vercel dev",
-    "check:json": "python3 -m json.tool data/model-capabilities.json > /dev/null && python3 -m json.tool data/router-training.json > /dev/null && python3 -m json.tool data/router-model.json > /dev/null"
+    "check:json": "python3 -m json.tool data/model-capabilities.json > /dev/null && python3 -m json.tool data/router-training.json > /dev/null && python3 -m json.tool data/router-eval.json > /dev/null && python3 -m json.tool data/router-model.json > /dev/null"
   }
 }

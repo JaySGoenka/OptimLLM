@@ -1,0 +1,529 @@
+{
+  "schema_version": 1,
+  "labels": {
+    "task_type": ["coding", "summarization", "reasoning", "math", "creative", "simple_qa", "data_analysis", "translation", "planning"],
+    "difficulty": ["easy", "medium", "hard"],
+    "privacy": ["low", "medium", "high"],
+    "route_class": ["local_tiny", "local_general", "local_coder", "local_reasoning", "cloud_fast", "cloud_strong", "cloud_long_context"]
+  },
+  "examples": [
+    {
+      "text": "Summarize this paragraph in three bullet points.",
+      "task_type": "summarization",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Rewrite this email to sound more professional and concise.",
+      "task_type": "summarization",
+      "difficulty": "easy",
+      "privacy": "medium",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Explain what an API is in simple terms for a beginner.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Classify these support tickets into billing, bug, or account categories.",
+      "task_type": "data_analysis",
+      "difficulty": "easy",
+      "privacy": "medium",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Translate this short message from English to Spanish.",
+      "task_type": "translation",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Create a friendly birthday message for my coworker.",
+      "task_type": "creative",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Summarize this private medical note without sending it to the cloud.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "I pasted my API key by accident. Tell me the safest steps to rotate it.",
+      "task_type": "simple_qa",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Review this contract clause and identify risks in plain language.",
+      "task_type": "reasoning",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Debug this JavaScript function that returns undefined for valid input.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Write a React component for a searchable dropdown.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Explain this Python stack trace and suggest a fix.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "medium",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Refactor this SQL query for readability and performance.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "medium",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Design an authentication architecture for a multi-tenant SaaS app.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Compare three database sharding strategies and explain tradeoffs.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Analyze this long product requirements document and produce an implementation plan.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Solve this proof step by step and check for logical gaps.",
+      "task_type": "math",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Solve this private financial planning math problem locally.",
+      "task_type": "math",
+      "difficulty": "hard",
+      "privacy": "high",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Reason through whether this business strategy is likely to work.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Draft a short poem about building software.",
+      "task_type": "creative",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Write a detailed short story with multiple characters and a twist ending.",
+      "task_type": "creative",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Make a weekly workout plan based on my personal injury history.",
+      "task_type": "planning",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Summarize these meeting notes that include customer names and phone numbers.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Extract action items from this long transcript.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "medium",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Explain the difference between OAuth and API keys.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Given these sales numbers, identify trends and anomalies.",
+      "task_type": "data_analysis",
+      "difficulty": "medium",
+      "privacy": "medium",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Analyze this CSV data and recommend statistical tests.",
+      "task_type": "data_analysis",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Translate a technical document while preserving terminology.",
+      "task_type": "translation",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Translate this private legal message into French.",
+      "task_type": "translation",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Generate unit tests for this TypeScript module.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Find the bug across these three files and explain the root cause.",
+      "task_type": "coding",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Find the bug in this private source code without using cloud models.",
+      "task_type": "coding",
+      "difficulty": "hard",
+      "privacy": "high",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Create a migration plan from REST to GraphQL for a large app.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "List five names for a local productivity app.",
+      "task_type": "creative",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Explain this bank statement and categorize transactions locally.",
+      "task_type": "data_analysis",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Solve a system of equations and explain each algebra step.",
+      "task_type": "math",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Answer this quick factual question in one sentence.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Plan a complex launch strategy with risks, milestones, and dependencies.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Summarize this very long technical specification.",
+      "task_type": "summarization",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Explain my private diagnosis report in simple language.",
+      "task_type": "simple_qa",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Give me a quick definition of latency.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Turn this sentence into a clearer sentence.",
+      "task_type": "summarization",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Make this note shorter without changing the meaning.",
+      "task_type": "summarization",
+      "difficulty": "easy",
+      "privacy": "medium",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Brainstorm ten short app names.",
+      "task_type": "creative",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Translate this casual text message to German.",
+      "task_type": "translation",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Explain this private email thread and keep it local.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Classify these private customer complaints by urgency.",
+      "task_type": "data_analysis",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Organize this personal schedule into a simple daily plan.",
+      "task_type": "planning",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Summarize my personal journal entry locally.",
+      "task_type": "summarization",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_general"
+    },
+    {
+      "text": "Write a JavaScript debounce function.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Explain why this React state update is stale.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Fix this private Python script without sending it to cloud.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Generate tests for a small API handler.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Review this local-only TypeScript utility for bugs.",
+      "task_type": "coding",
+      "difficulty": "medium",
+      "privacy": "high",
+      "route_class": "local_coder"
+    },
+    {
+      "text": "Solve this logic puzzle step by step.",
+      "task_type": "reasoning",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Check this algebra solution and explain the mistake.",
+      "task_type": "math",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Reason through this private family budget question locally.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "high",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Analyze this local-only legal argument for weak points.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "high",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Solve this private math word problem without cloud models.",
+      "task_type": "math",
+      "difficulty": "hard",
+      "privacy": "high",
+      "route_class": "local_reasoning"
+    },
+    {
+      "text": "Write a polished product announcement paragraph.",
+      "task_type": "creative",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Create five alternative marketing taglines with different tones.",
+      "task_type": "creative",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Translate a nuanced business proposal and preserve tone.",
+      "task_type": "translation",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Draft a detailed but low-risk blog outline.",
+      "task_type": "planning",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Improve the wording of this public landing page copy.",
+      "task_type": "creative",
+      "difficulty": "medium",
+      "privacy": "low",
+      "route_class": "cloud_fast"
+    },
+    {
+      "text": "Design a scalable event-driven architecture and justify tradeoffs.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Analyze competing technical approaches for a distributed cache.",
+      "task_type": "reasoning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Find architectural risks in this large public code design.",
+      "task_type": "coding",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Explain a complex proof and identify hidden assumptions.",
+      "task_type": "math",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Create an end-to-end implementation plan for a new SaaS feature.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_strong"
+    },
+    {
+      "text": "Summarize a very long meeting transcript with decisions and owners.",
+      "task_type": "summarization",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Extract requirements from a long public design document.",
+      "task_type": "data_analysis",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Compare all sections of a long policy document and produce a summary.",
+      "task_type": "summarization",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Analyze a long research paper and list methods, results, and limitations.",
+      "task_type": "data_analysis",
+      "difficulty": "hard",
+      "privacy": "low",
+      "route_class": "cloud_long_context"
+    },
+    {
+      "text": "Turn a long implementation spec into a milestone roadmap.",
+      "task_type": "planning",
+      "difficulty": "hard",
+      "privacy": "medium",
+      "route_class": "cloud_long_context"
+    }
+  ]
+}

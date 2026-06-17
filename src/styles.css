@@ -24,7 +24,7 @@ body {
 }
 
 button,
- a,
+a,
 select,
 textarea {
   font: inherit;
@@ -90,6 +90,11 @@ h2 {
   text-align: center;
   font-size: 14px;
   font-weight: 700;
+}
+
+.status-stack {
+  display: grid;
+  gap: 8px;
 }
 
 .status-pill[data-status="online"] {

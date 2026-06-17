@@ -1,7 +1,34 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-06-09",
+  "updated_at": "2026-06-15",
   "models": [
+    {
+      "id": "llama3.2:1b",
+      "provider": "ollama",
+      "display_name": "Llama 3.2 1B",
+      "route_name": "local_tiny",
+      "local": true,
+      "enabled": true,
+      "auto_install_supported": true,
+      "runtime": {
+        "name": "ollama",
+        "base_url": "http://localhost:11434",
+        "tags_endpoint": "/api/tags",
+        "pull_endpoint": "/api/pull",
+        "chat_endpoint": "/api/chat"
+      },
+      "hardware": {
+        "min_ram_gb": 4,
+        "recommended_ram_gb": 8,
+        "min_vram_gb": 0,
+        "gpu_required": false
+      },
+      "context_window_tokens": 131072,
+      "strengths": ["lowest_local_resource_use", "fast_private_drafts", "simple_qa", "short_summarization"],
+      "weaknesses": ["weak_reasoning", "weak_coding", "hallucination_risk_on_complex_tasks", "limited_instruction_following"],
+      "privacy_level": "local",
+      "cost": 0
+    },
     {
       "id": "llama3.2:3b",
       "provider": "ollama",
@@ -57,6 +84,33 @@
       "cost": 0
     },
     {
+      "id": "qwen3:4b",
+      "provider": "ollama",
+      "display_name": "Qwen 3 4B",
+      "route_name": "local_balanced_reasoning",
+      "local": true,
+      "enabled": true,
+      "auto_install_supported": true,
+      "runtime": {
+        "name": "ollama",
+        "base_url": "http://localhost:11434",
+        "tags_endpoint": "/api/tags",
+        "pull_endpoint": "/api/pull",
+        "chat_endpoint": "/api/chat"
+      },
+      "hardware": {
+        "min_ram_gb": 8,
+        "recommended_ram_gb": 16,
+        "min_vram_gb": 0,
+        "gpu_required": false
+      },
+      "context_window_tokens": 40960,
+      "strengths": ["local_reasoning", "structured_answers", "classification", "general_private_tasks"],
+      "weaknesses": ["slower_than_1b_and_3b_models", "weaker_than_large_cloud_models", "limited_large_codebase_reasoning", "hardware_sensitive_latency"],
+      "privacy_level": "local",
+      "cost": 0
+    },
+    {
       "id": "qwen2.5-coder:7b",
       "provider": "ollama",
       "display_name": "Qwen 2.5 Coder 7B",
@@ -80,6 +134,33 @@
       "context_window_tokens": 32768,
       "strengths": ["coding", "debugging", "code_generation", "code_explanation"],
       "weaknesses": ["large_architecture_planning", "non_code_reasoning_depth", "very_long_context"],
+      "privacy_level": "local",
+      "cost": 0
+    },
+    {
+      "id": "deepseek-r1:7b",
+      "provider": "ollama",
+      "display_name": "DeepSeek R1 7B",
+      "route_name": "local_reasoning",
+      "local": true,
+      "enabled": true,
+      "auto_install_supported": true,
+      "runtime": {
+        "name": "ollama",
+        "base_url": "http://localhost:11434",
+        "tags_endpoint": "/api/tags",
+        "pull_endpoint": "/api/pull",
+        "chat_endpoint": "/api/chat"
+      },
+      "hardware": {
+        "min_ram_gb": 16,
+        "recommended_ram_gb": 24,
+        "min_vram_gb": 0,
+        "gpu_required": false
+      },
+      "context_window_tokens": 32768,
+      "strengths": ["step_by_step_reasoning", "math_reasoning", "logic_tasks", "private_complex_questions"],
+      "weaknesses": ["higher_latency", "verbose_reasoning_style", "not_ideal_for_fast_chat", "not_specialized_for_code_editing"],
       "privacy_level": "local",
       "cost": 0
     },

@@ -13,7 +13,10 @@
           <p class="eyebrow">OptimLLM</p>
           <h1>Model Router</h1>
         </div>
-        <div class="status-pill" id="ollamaStatus">Checking Ollama</div>
+        <div class="status-stack">
+          <div class="status-pill" id="ollamaStatus">Checking Ollama</div>
+          <div class="status-pill" id="companionStatus">Checking Companion</div>
+        </div>
       </header>
 
       <section class="workspace">
@@ -54,10 +57,25 @@
             <pre id="setupCommand" class="command-panel"></pre>
           </details>
 
+          <details class="local-setup" open>
+            <summary>System profile</summary>
+            <div class="setup-grid">
+              <div>
+                <span class="setup-label">Companion endpoint</span>
+                <code>http://127.0.0.1:43110</code>
+              </div>
+            </div>
+            <div class="setup-actions">
+              <button id="refreshCompanionButton" type="button">Refresh System Profile</button>
+              <button id="copyCompanionCommandButton" type="button">Copy Companion Command</button>
+            </div>
+            <pre id="systemProfilePanel" class="command-panel" aria-live="polite"></pre>
+          </details>
+
           <div class="model-list-wrap" aria-label="Available models">
             <div class="model-list-header">
               <h2>Models</h2>
-              <span>Route candidates</span>
+              <span>Manual routes</span>
             </div>
             <div id="modelTableBody" class="model-list"></div>
           </div>

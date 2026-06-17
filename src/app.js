@@ -1,11 +1,35 @@
 const MODEL_DB_URL = "/data/model-capabilities.json";
+const ROUTER_MODEL_URL = "/data/router-model.json";
 const OLLAMA_BASE_URL = "http://localhost:11434";
+const COMPANION_BASE_URL = "http://127.0.0.1:43110";
+const AUTO_ROUTE_ID = "__auto_router__";
+const ROUTER_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into",
+  "is", "it", "me", "my", "of", "on", "or", "that", "the", "this", "to", "with"
+]);
+const ROUTER_PRIVACY_TERMS = [
+  "private", "confidential", "secret", "password", "api key", "token", "ssn",
+  "social security", "medical", "diagnosis", "bank", "credit card", "personal",
+  "address", "phone number", "email", "legal", "contract", "customer", "journal"
+];
+const ROUTER_CODING_TERMS = [
+  "code", "function", "debug", "bug", "javascript", "typescript", "python",
+  "react", "node", "api", "sql", "stack trace", "refactor", "component"
+];
+const ROUTER_COMPLEX_TERMS = [
+  "architecture", "multi-step", "deep", "detailed", "optimize", "tradeoff",
+  "compare", "reason", "reasoning", "proof", "math", "logic", "design",
+  "strategy", "analyze", "implement end to end", "scalable", "distributed"
+];
 
 // This state object is the single source of truth for the current UI.
 const state = {
   models: [],
+  routerModel: null,
   installedLocalModels: new Set(),
   ollamaOnline: false,
+  companionOnline: false,
+  systemProfile: null,
   providerFilter: "all",
   selectedModelId: null,
   messages: [],
@@ -14,14 +38,18 @@ const state = {
 
 const elements = {
   ollamaStatus: document.querySelector("#ollamaStatus"),
+  companionStatus: document.querySelector("#companionStatus"),
   appOriginLabel: document.querySelector("#appOriginLabel"),
   modelTableBody: document.querySelector("#modelTableBody"),
   routeSelect: document.querySelector("#routeSelect"),
   refreshOllamaButton: document.querySelector("#refreshOllamaButton"),
   pullModelButton: document.querySelector("#pullModelButton"),
+  refreshCompanionButton: document.querySelector("#refreshCompanionButton"),
   copyStartCommandButton: document.querySelector("#copyStartCommandButton"),
   copyCorsCommandButton: document.querySelector("#copyCorsCommandButton"),
+  copyCompanionCommandButton: document.querySelector("#copyCompanionCommandButton"),
   setupCommand: document.querySelector("#setupCommand"),
+  systemProfilePanel: document.querySelector("#systemProfilePanel"),
   pullLog: document.querySelector("#pullLog"),
   selectedModelSummary: document.querySelector("#selectedModelSummary"),
   messages: document.querySelector("#messages"),
@@ -33,11 +61,26 @@ const elements = {
 };
 
 async function init() {
-  await loadModelDatabase();
+  await Promise.all([loadModelDatabase(), loadRouterModel()]);
   renderLocalSetup();
   bindEvents();
-  await refreshOllamaStatus();
+  await Promise.all([refreshOllamaStatus(), refreshCompanionStatus()]);
   render();
+}
+
+async function loadRouterModel() {
+  try {
+    const response = await fetch(ROUTER_MODEL_URL);
+
+    if (!response.ok) {
+      throw new Error(`Could not load router model: ${response.status}`);
+    }
+
+    state.routerModel = await response.json();
+  } catch (error) {
+    state.routerModel = null;
+    writePullLog(`ML router unavailable; using rule fallback. ${error.message}`);
+  }
 }
 
 async function loadModelDatabase() {
@@ -49,7 +92,7 @@ async function loadModelDatabase() {
 
   const database = await response.json();
   state.models = database.models;
-  state.selectedModelId = state.models[0]?.id ?? null;
+  state.selectedModelId = AUTO_ROUTE_ID;
 }
 
 function bindEvents() {
@@ -71,6 +114,7 @@ function bindEvents() {
 
   // Listen for clicks on the refresh button to check Ollama's status and update the UI accordingly.
   elements.refreshOllamaButton.addEventListener("click", refreshOllamaStatus);
+  elements.refreshCompanionButton.addEventListener("click", refreshCompanionStatus);
 
   elements.copyStartCommandButton.addEventListener("click", () => {
     copySetupCommand(getStartCommand(), "Copied the local Ollama start command.");
@@ -78,6 +122,11 @@ function bindEvents() {
 
   elements.copyCorsCommandButton.addEventListener("click", () => {
     copySetupCommand(getCorsCommand(), "Copied the command that allows this Vercel URL to reach Ollama.");
+  });
+
+  elements.copyCompanionCommandButton.addEventListener("click", () => {
+    copyText(getCompanionCommand(), "Copied the local companion command.");
+    elements.systemProfilePanel.textContent = getCompanionCommand();
   });
   
   // Listen for clicks on the pull model button to start the installation process for the selected local model.
@@ -94,6 +143,29 @@ function bindEvents() {
     event.preventDefault();
     await sendChatMessage();
   });
+}
+
+async function refreshCompanionStatus() {
+  setCompanionStatus("checking");
+
+  try {
+    const response = await fetch(`${COMPANION_BASE_URL}/system-profile`);
+
+    if (!response.ok) {
+      throw new Error(`Companion responded with ${response.status}`);
+    }
+
+    state.systemProfile = await response.json();
+    state.companionOnline = true;
+    setCompanionStatus("online");
+  } catch (error) {
+    state.systemProfile = null;
+    state.companionOnline = false;
+    setCompanionStatus("offline");
+  }
+
+  renderSystemProfile();
+  render();
 }
 
 async function refreshOllamaStatus() {
@@ -173,12 +245,15 @@ function getCorsCommand() {
 
 async function copySetupCommand(command, successMessage) {
   elements.setupCommand.textContent = command;
+  await copyText(command, successMessage);
+}
 
+async function copyText(text, successMessage) {
   try {
-    await navigator.clipboard.writeText(command);
+    await navigator.clipboard.writeText(text);
     writePullLog(successMessage);
   } catch (error) {
-    writePullLog("Copy failed. Select the command in the setup panel and copy it manually.");
+    writePullLog("Copy failed. Select the command in the panel and copy it manually.");
   }
 }
 
@@ -214,8 +289,55 @@ function setOllamaStatus(status) {
   elements.ollamaStatus.dataset.status = status;
 }
 
+function setCompanionStatus(status) {
+  const labels = {
+    checking: "Checking Companion",
+    online: "Companion Online",
+    offline: "Companion Offline"
+  };
+
+  elements.companionStatus.textContent = labels[status];
+  elements.companionStatus.dataset.status = status;
+}
+
+function renderSystemProfile() {
+  if (!state.systemProfile) {
+    elements.systemProfilePanel.textContent = [
+      "Local companion is not reachable.",
+      "",
+      "Run this on the user's machine:",
+      getCompanionCommand(),
+      "",
+      "The app still works without it, but Auto Router will not have exact system capability data."
+    ].join("\n");
+    return;
+  }
+
+  const profile = state.systemProfile;
+  const gpuLines = profile.gpu?.devices?.length
+    ? profile.gpu.devices.map((device) => `- ${device.name}${device.vram ? ` (${device.vram})` : ""}`)
+    : ["- No GPU details detected"];
+
+  elements.systemProfilePanel.textContent = [
+    `Platform: ${profile.platform} ${profile.arch}`,
+    `CPU: ${profile.cpu?.model ?? "unknown"}`,
+    `Logical cores: ${profile.cpu?.logical_cores ?? "unknown"}`,
+    `RAM: ${profile.memory?.total_gb ?? "unknown"} GB`,
+    "GPU:",
+    ...gpuLines
+  ].join("\n");
+}
+
+function getCompanionCommand() {
+  return "npm run companion";
+}
+
 function getSelectedModel() {
   return state.models.find((model) => model.id === state.selectedModelId);
+}
+
+function isAutoRouteSelected() {
+  return state.selectedModelId === AUTO_ROUTE_ID;
 }
 
 function getFilteredModels() {
@@ -236,10 +358,11 @@ function render() {
 function renderRouteSelect() {
   const currentValue = state.selectedModelId;
 
-  elements.routeSelect.innerHTML = state.models
+  const modelOptions = state.models
     .map((model) => `<option value="${escapeHtml(model.id)}">${escapeHtml(model.route_name)} - ${escapeHtml(model.display_name)}</option>`)
     .join("");
 
+  elements.routeSelect.innerHTML = `<option value="${AUTO_ROUTE_ID}">auto_router - OptimLLM Auto Router</option>${modelOptions}`;
   elements.routeSelect.value = currentValue;
 }
 
@@ -291,6 +414,12 @@ function getModelStatus(model) {
 }
 
 function renderSelectedModelSummary() {
+  if (isAutoRouteSelected()) {
+    const routerMode = state.routerModel ? "ML classifier" : "rule fallback";
+    elements.selectedModelSummary.textContent = `Auto Router uses a ${routerMode} with privacy, difficulty, task type, local model availability, and system profile signals.`;
+    return;
+  }
+
   const model = getSelectedModel();
 
   if (!model) {
@@ -349,15 +478,18 @@ async function pullSelectedLocalModel() {
 }
 
 async function sendChatMessage() {
-  const model = getSelectedModel();
   const prompt = elements.promptInput.value.trim();
 
   if (!prompt || state.responseInFlight) return;
 
-  if (!model) {
-    appendMessage("system", "Select a model before chatting.");
+  const routeDecision = resolveChatRoute(prompt);
+
+  if (routeDecision.error) {
+    appendMessage("system", routeDecision.error);
     return;
   }
+
+  const model = routeDecision.model;
 
   if (model.local && !state.installedLocalModels.has(model.id)) {
     appendMessage("system", `Install ${model.id} before chatting with it.`);
@@ -366,6 +498,9 @@ async function sendChatMessage() {
 
   // Display the user message in the chat UI and store it in message history
   appendMessage("user", prompt);
+  if (routeDecision.auto) {
+    appendMessage("system", `Auto Router selected ${model.display_name}: ${routeDecision.reason}`);
+  }
   state.messages.push({ role: "user", content: prompt });
   
   // Clear the input field for the next message
@@ -396,6 +531,366 @@ async function sendChatMessage() {
     state.responseInFlight = false;
     renderChatControls();
   }
+}
+
+function resolveChatRoute(prompt) {
+  if (!isAutoRouteSelected()) {
+    const model = getSelectedModel();
+
+    if (!model) {
+      return { error: "Select a model before chatting." };
+    }
+
+    return {
+      auto: false,
+      model,
+      reason: "Manual route selected."
+    };
+  }
+
+  return selectAutoRoute(prompt);
+}
+
+function selectAutoRoute(prompt) {
+  const signals = analyzePrompt(prompt);
+  const installedLocalModels = getCompatibleInstalledLocalModels();
+  const cloudModels = state.models.filter((model) => model.enabled && !model.local);
+
+  if (signals.private && installedLocalModels.length === 0) {
+    return {
+      error: "Auto Router detected private-looking content, but no local Ollama model is installed. Install a local model or manually choose a cloud route if you want to send this prompt to cloud."
+    };
+  }
+
+  if (signals.private) {
+    const localModel = pickLocalModel(installedLocalModels, signals);
+    return {
+      auto: true,
+      model: localModel,
+      reason: `${describeRouterSignals(signals)} It stayed local because privacy risk was detected.`
+    };
+  }
+
+  if (signals.simple && installedLocalModels.length > 0 && !signals.longPrompt) {
+    const localModel = pickLocalModel(installedLocalModels, signals);
+    return {
+      auto: true,
+      model: localModel,
+      reason: `${describeRouterSignals(signals)} A lightweight local model is enough.`
+    };
+  }
+
+  if (signals.coding && !signals.complex && hasInstalledModel("qwen2.5-coder:7b")) {
+    return {
+      auto: true,
+      model: getModelById("qwen2.5-coder:7b"),
+      reason: `${describeRouterSignals(signals)} The local coding model is installed.`
+    };
+  }
+
+  const cloudModel = pickCloudModel(cloudModels, signals);
+
+  if (cloudModel) {
+    return {
+      auto: true,
+      model: cloudModel,
+      reason: signals.complex || signals.longPrompt
+        ? `${describeRouterSignals(signals)} The task looks complex enough to use a stronger cloud route.`
+        : `${describeRouterSignals(signals)} No suitable installed local model was available.`
+    };
+  }
+
+  if (installedLocalModels.length > 0) {
+    const localModel = pickLocalModel(installedLocalModels, signals);
+    return {
+      auto: true,
+      model: localModel,
+      reason: `${describeRouterSignals(signals)} Cloud routes are unavailable, so it used the best installed local model.`
+    };
+  }
+
+  return {
+    error: "Auto Router could not find an available route. Install a local Ollama model or configure a cloud provider API key."
+  };
+}
+
+function analyzePrompt(prompt) {
+  const rules = analyzePromptRules(prompt);
+  const prediction = predictPromptWithRouterModel(prompt);
+
+  if (!prediction) {
+    return rules;
+  }
+
+  return {
+    ...rules,
+    private: prediction.privacy.label === "high" || rules.private,
+    coding: prediction.task_type.label === "coding",
+    complex: prediction.difficulty.label === "hard" || rules.longPrompt,
+    simple: prediction.difficulty.label === "easy" && !rules.longPrompt,
+    taskType: prediction.task_type.label,
+    difficulty: prediction.difficulty.label,
+    privacy: rules.private ? "high" : prediction.privacy.label,
+    routeClass: prediction.route_class.label,
+    confidence: averageConfidence(prediction),
+    source: "ml"
+  };
+}
+
+function analyzePromptRules(prompt) {
+  const text = prompt.toLowerCase();
+
+  const privateTerms = [
+    "private", "confidential", "secret", "password", "api key", "token", "ssn",
+    "social security", "medical", "diagnosis", "bank", "credit card", "personal",
+    "address", "phone number", "email", "legal", "contract"
+  ];
+  const codingTerms = [
+    "code", "function", "debug", "bug", "javascript", "typescript", "python",
+    "react", "node", "api", "sql", "stack trace", "refactor", "component"
+  ];
+  const complexTerms = [
+    "architecture", "multi-step", "deep", "detailed", "optimize", "tradeoff",
+    "compare", "reason", "reasoning", "proof", "math", "logic", "design",
+    "strategy", "analyze", "implement end to end"
+  ];
+  const simpleTerms = [
+    "summarize", "rewrite", "classify", "explain", "translate", "short", "quick",
+    "simple", "list", "outline"
+  ];
+
+  const hasAny = (terms) => terms.some((term) => text.includes(term));
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  return {
+    private: hasAny(privateTerms),
+    coding: hasAny(codingTerms),
+    complex: hasAny(complexTerms) || wordCount > 180,
+    simple: hasAny(simpleTerms) || wordCount < 60,
+    longPrompt: prompt.length > 1600,
+    taskType: hasAny(codingTerms) ? "coding" : "unknown",
+    difficulty: hasAny(complexTerms) || wordCount > 180 ? "hard" : "easy",
+    privacy: hasAny(privateTerms) ? "high" : "low",
+    routeClass: null,
+    confidence: null,
+    source: "rules"
+  };
+}
+
+function predictPromptWithRouterModel(prompt) {
+  if (!state.routerModel?.classifiers) {
+    return null;
+  }
+
+  const tokens = tokenizeForRouter(prompt);
+  const prediction = {};
+
+  for (const target of state.routerModel.targets) {
+    prediction[target] = predictTarget(tokens, state.routerModel.classifiers[target]);
+  }
+
+  return prediction;
+}
+
+function tokenizeForRouter(text) {
+  const normalized = text
+    .toLowerCase()
+    .replace(/[^a-z0-9+#.]+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !ROUTER_STOP_WORDS.has(word));
+  const bigrams = [];
+
+  for (let index = 0; index < words.length - 1; index += 1) {
+    bigrams.push(`${words[index]}_${words[index + 1]}`);
+  }
+
+  const tokens = [...words, ...bigrams];
+  const charNgrams = state.routerModel?.preprocessing?.char_ngrams;
+
+  if (Array.isArray(charNgrams) && charNgrams.length === 2) {
+    const compactText = words.join(" ");
+    const [minSize, maxSize] = charNgrams;
+
+    for (let size = minSize; size <= maxSize; size += 1) {
+      for (let index = 0; index <= compactText.length - size; index += 1) {
+        const ngram = compactText.slice(index, index + size);
+
+        if (!ngram.includes(" ")) {
+          tokens.push(`char:${ngram}`);
+        }
+      }
+    }
+  }
+
+  if (containsAny(normalized, ROUTER_PRIVACY_TERMS)) {
+    tokens.push("feature:privacy", "feature:privacy");
+  }
+
+  if (containsAny(normalized, ROUTER_CODING_TERMS)) {
+    tokens.push("feature:coding", "feature:coding");
+  }
+
+  if (containsAny(normalized, ROUTER_COMPLEX_TERMS) || words.length > 80) {
+    tokens.push("feature:complex", "feature:complex");
+  }
+
+  if (words.length < 12) {
+    tokens.push("feature:short_prompt");
+  } else if (words.length > 80) {
+    tokens.push("feature:long_prompt");
+  }
+
+  return tokens;
+}
+
+function containsAny(text, terms) {
+  return terms.some((term) => text.includes(term));
+}
+
+function predictTarget(tokens, classifier) {
+  const scores = classifier.labels.map((label) => {
+    const classModel = classifier.classes[label];
+    let score = classModel.log_prior;
+
+    for (const token of tokens) {
+      score += classModel.token_log_likelihoods[token] ?? classModel.unknown_log_likelihood;
+    }
+
+    return { label, score };
+  });
+
+  scores.sort((left, right) => right.score - left.score);
+  const confidence = softmaxConfidence(scores, scores[0].score);
+
+  return {
+    label: scores[0].label,
+    confidence,
+    alternatives: scores.slice(1, 3).map((item) => ({
+      label: item.label,
+      confidence: softmaxConfidence(scores, item.score)
+    }))
+  };
+}
+
+function softmaxConfidence(scores, score) {
+  const maxScore = Math.max(...scores.map((item) => item.score));
+  const denominator = scores.reduce((sum, item) => sum + Math.exp(item.score - maxScore), 0);
+  return Math.exp(score - maxScore) / denominator;
+}
+
+function averageConfidence(prediction) {
+  const values = Object.values(prediction).map((item) => item.confidence);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Math.round(average * 100);
+}
+
+function describeRouterSignals(signals) {
+  if (signals.source === "ml") {
+    return `ML predicted ${signals.taskType}/${signals.difficulty}/${signals.privacy} privacy with ${signals.confidence}% confidence.`;
+  }
+
+  return "Rule fallback analyzed the prompt.";
+}
+
+function getInstalledLocalModels() {
+  return state.models.filter((model) => model.local && state.installedLocalModels.has(model.id));
+}
+
+function getCompatibleInstalledLocalModels() {
+  const localModels = getInstalledLocalModels();
+
+  if (!state.systemProfile?.memory?.total_gb) {
+    return localModels;
+  }
+
+  const totalRamGb = state.systemProfile.memory.total_gb;
+  const compatibleModels = localModels.filter((model) => {
+    const minRamGb = model.hardware?.min_ram_gb ?? 0;
+    return minRamGb <= totalRamGb;
+  });
+
+  return compatibleModels.length > 0 ? compatibleModels : localModels;
+}
+
+function hasInstalledModel(modelId) {
+  return state.installedLocalModels.has(modelId);
+}
+
+function getModelById(modelId) {
+  return state.models.find((model) => model.id === modelId);
+}
+
+function pickLocalModel(localModels, signals) {
+  if (signals.routeClass === "local_tiny") {
+    return localModels.find((model) => model.id === "llama3.2:1b")
+      ?? localModels.find((model) => model.id === "llama3.2:3b")
+      ?? localModels[0];
+  }
+
+  if (signals.routeClass === "local_general") {
+    return localModels.find((model) => model.id === "qwen3:4b")
+      ?? localModels.find((model) => model.id === "qwen2.5:3b")
+      ?? localModels.find((model) => model.id === "llama3.2:3b")
+      ?? localModels[0];
+  }
+
+  if (signals.routeClass === "local_coder") {
+    return localModels.find((model) => model.id === "qwen2.5-coder:7b")
+      ?? localModels.find((model) => model.id === "qwen3:4b")
+      ?? localModels[0];
+  }
+
+  if (signals.routeClass === "local_reasoning") {
+    return localModels.find((model) => model.id === "deepseek-r1:7b")
+      ?? localModels.find((model) => model.id === "qwen3:4b")
+      ?? localModels[0];
+  }
+
+  if (signals.coding) {
+    return localModels.find((model) => model.id === "qwen2.5-coder:7b")
+      ?? localModels.find((model) => model.id === "qwen3:4b")
+      ?? localModels.find((model) => model.id === "qwen2.5:3b")
+      ?? localModels[0];
+  }
+
+  if (signals.complex || signals.longPrompt) {
+    return localModels.find((model) => model.id === "deepseek-r1:7b")
+      ?? localModels.find((model) => model.id === "qwen3:4b")
+      ?? localModels.find((model) => model.id === "qwen2.5:3b")
+      ?? localModels[0];
+  }
+
+  if (signals.simple) {
+    return localModels.find((model) => model.id === "llama3.2:1b")
+      ?? localModels.find((model) => model.id === "llama3.2:3b")
+      ?? localModels.find((model) => model.id === "qwen2.5:3b")
+      ?? localModels[0];
+  }
+
+  return localModels.find((model) => model.id === "qwen3:4b")
+    ?? localModels.find((model) => model.id === "qwen2.5:3b")
+    ?? localModels.find((model) => model.id === "llama3.2:3b")
+    ?? localModels.find((model) => model.id === "llama3.2:1b")
+    ?? localModels[0];
+}
+
+function pickCloudModel(cloudModels, signals) {
+  if (signals.routeClass === "cloud_long_context" || signals.longPrompt) {
+    return cloudModels.find((model) => model.id === "gemini-3.5-flash") ?? cloudModels[0];
+  }
+
+  if (signals.routeClass === "cloud_strong" || signals.complex || signals.coding) {
+    return cloudModels.find((model) => model.id === "qwen/qwen3-32b") ?? cloudModels[0];
+  }
+
+  return cloudModels.find((model) => model.id === "llama-3.1-8b-instant") ?? cloudModels[0];
 }
 
 async function sendOllamaChatMessage(model, assistantMessage) {

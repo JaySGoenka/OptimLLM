@@ -104,7 +104,10 @@ async function loadModelDatabase() {
   }
 
   const database = await response.json();
-  state.models = database.models;
+  state.models = database.models.map((model) => ({
+    ...model,
+    routing_profile: database.routing_profiles?.[model.id] ?? null
+  }));
   state.selectedModelId = AUTO_ROUTE_ID;
 }
 
@@ -567,68 +570,45 @@ function resolveChatRoute(prompt) {
 function selectAutoRoute(prompt) {
   const signals = analyzePrompt(prompt);
   const installedLocalModels = getCompatibleInstalledLocalModels();
-  const anyInstalledLocalModels = getInstalledLocalModels();
   const cloudModels = state.models.filter((model) => model.enabled && !model.local);
 
-  if (signals.private && installedLocalModels.length === 0) {
+  if (signals.private && signals.difficulty !== "easy") {
     return {
-      error: anyInstalledLocalModels.length > 0
-        ? "Auto Router detected private-looking content, but the installed local models do not match the current hardware profile. Install a smaller local model or manually choose a cloud route if you want to send this prompt to cloud."
-        : "Auto Router detected private-looking content, but no local Ollama model is installed. Install a local model or manually choose a cloud route if you want to send this prompt to cloud."
+      error: `Auto Router classified this as a ${signals.difficulty} private task. Local models are restricted to easy tasks, while privacy rules block automatic cloud use. Manually choose a route if you want to override either policy.`
+    };
+  }
+
+  if (signals.difficulty === "easy" && installedLocalModels.length > 0) {
+    const localModel = rankModels(installedLocalModels, signals)[0];
+    return {
+      auto: true,
+      model: localModel,
+      reason: `${describeRouterSignals(signals)} Easy tasks prefer an installed local model.`
     };
   }
 
   if (signals.private) {
-    const localModel = pickLocalModel(installedLocalModels, signals);
     return {
-      auto: true,
-      model: localModel,
-      reason: `${describeRouterSignals(signals)} It stayed local because privacy risk was detected.`
+      error: "Auto Router detected private content, but no compatible local model is installed for this easy task. Install a recommended local model or manually choose a cloud route to override privacy protection."
     };
   }
 
-  if (signals.simple && installedLocalModels.length > 0 && !signals.longPrompt) {
-    const localModel = pickLocalModel(installedLocalModels, signals);
-    return {
-      auto: true,
-      model: localModel,
-      reason: `${describeRouterSignals(signals)} A lightweight local model is enough.`
-    };
-  }
-
-  const compatibleCoder = installedLocalModels.find((model) => model.id === "qwen2.5-coder:7b");
-
-  if (signals.coding && !signals.complex && compatibleCoder) {
-    return {
-      auto: true,
-      model: compatibleCoder,
-      reason: `${describeRouterSignals(signals)} The local coding model is installed.`
-    };
-  }
-
-  const cloudModel = pickCloudModel(cloudModels, signals);
+  const cloudModel = rankModels(cloudModels, signals)[0];
 
   if (cloudModel) {
     return {
       auto: true,
       model: cloudModel,
-      reason: signals.complex || signals.longPrompt
-        ? `${describeRouterSignals(signals)} The task looks complex enough to use a stronger cloud route.`
-        : `${describeRouterSignals(signals)} No suitable installed local model was available.`
-    };
-  }
-
-  if (installedLocalModels.length > 0) {
-    const localModel = pickLocalModel(installedLocalModels, signals);
-    return {
-      auto: true,
-      model: localModel,
-      reason: `${describeRouterSignals(signals)} Cloud routes are unavailable, so it used the best installed local model.`
+      reason: signals.difficulty === "easy"
+        ? `${describeRouterSignals(signals)} No compatible local model was installed, so it used the best available cloud route.`
+        : `${describeRouterSignals(signals)} ${capitalize(signals.difficulty)} tasks are routed to cloud by policy.`
     };
   }
 
   return {
-    error: "Auto Router could not find an available route. Install a local Ollama model or configure a cloud provider API key."
+    error: signals.difficulty === "easy"
+      ? "Auto Router could not find an available route. Install a local model or configure a cloud provider."
+      : `Auto Router requires a cloud model for this ${signals.difficulty} task, but no cloud route is available.`
   };
 }
 
@@ -640,10 +620,13 @@ function analyzePrompt(prompt) {
     return rules;
   }
 
-  const taskType = prediction.task_type.label;
-  const difficulty = strongerDifficulty(rules.difficulty, prediction.difficulty.label);
+  const taskPrediction = prediction.task_type;
+  const taskType = rules.factualQuestion && !rules.coding
+    ? "simple_qa"
+    : selectTaskType(rules, taskPrediction);
+  const complexity = assessPromptComplexity(prompt, taskType, rules, prediction.difficulty);
+  const difficulty = complexity.label;
   const privacy = strongerPrivacy(rules.privacy, prediction.privacy.label);
-  const routeClass = deriveRouteClass(taskType, difficulty, privacy, rules, prediction.route_class.label);
 
   return {
     ...rules,
@@ -654,8 +637,10 @@ function analyzePrompt(prompt) {
     taskType,
     difficulty,
     privacy,
-    routeClass,
-    confidence: averageConfidence(prediction),
+    complexity,
+    requiresLongContext: complexity.dimensions.longContext > 0,
+    confidence: routingConfidence(prediction, complexity),
+    uncertain: isPredictionUncertain(prediction),
     source: "ml"
   };
 }
@@ -671,15 +656,20 @@ function analyzePromptRules(prompt) {
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const privacy = scorePromptPrivacy(prompt);
   const difficulty = scorePromptDifficulty(prompt, wordCount);
+  const factualQuestion = wordCount <= 24
+    && /^(what|who|when|where|why|how|define|explain|describe)\b/.test(text.trim())
+    && !hasAny(ROUTER_COMPLEX_TERMS);
+  const taskType = inferRuleTaskType(text, factualQuestion);
 
   return {
     private: privacy.label === "high",
-    coding: hasAny(ROUTER_CODING_TERMS),
+    coding: taskType === "coding",
     complex: difficulty.label === "hard",
-    simple: difficulty.label === "easy" || hasAny(simpleTerms),
+    simple: factualQuestion || difficulty.label === "easy" || hasAny(simpleTerms),
     longPrompt: prompt.length > 1600,
-    taskType: hasAny(ROUTER_CODING_TERMS) ? "coding" : "unknown",
-    difficulty: difficulty.label,
+    factualQuestion,
+    taskType,
+    difficulty: factualQuestion ? "easy" : difficulty.label,
     privacy: privacy.label,
     routeClass: null,
     confidence: null,
@@ -687,8 +677,21 @@ function analyzePromptRules(prompt) {
   };
 }
 
+function inferRuleTaskType(text, factualQuestion) {
+  if (factualQuestion) return "simple_qa";
+  if (containsAny(text, ROUTER_TASK_FEATURES.translation)) return "translation";
+  if (containsAny(text, ROUTER_TASK_FEATURES.summary)) return "summarization";
+  if (/\b(plan|roadmap|schedule|checklist|itinerary|milestones?|study routine|study plan)\b/.test(text)) return "planning";
+  if (/\b(debug|refactor|code|function|component|stack trace|unit tests?|sql query|api handler|program|script)\b/.test(text)) return "coding";
+  if (containsAny(text, ROUTER_TASK_FEATURES.math)) return "math";
+  if (containsAny(text, ROUTER_TASK_FEATURES.data)) return "data_analysis";
+  if (containsAny(text, ROUTER_TASK_FEATURES.reasoning)) return "reasoning";
+  if (containsAny(text, ROUTER_TASK_FEATURES.creative)) return "creative";
+  return "unknown";
+}
+
 function predictPromptWithRouterModel(prompt) {
-  if (!state.routerModel?.classifiers && !state.routerModel?.centroid_classifiers) {
+  if (!state.routerModel?.linear_classifiers && !state.routerModel?.classifiers && !state.routerModel?.centroid_classifiers) {
     return null;
   }
 
@@ -696,10 +699,48 @@ function predictPromptWithRouterModel(prompt) {
   const prediction = {};
 
   for (const target of state.routerModel.targets) {
-    prediction[target] = predictTargetHybrid(tokens, state.routerModel.classifiers[target], state.routerModel.centroid_classifiers?.[target]);
+    const linearClassifier = state.routerModel.linear_classifiers?.[target];
+    prediction[target] = linearClassifier
+      ? predictTargetLinear(tokens, linearClassifier)
+      : predictTargetHybrid(
+          tokens,
+          state.routerModel.classifiers?.[target],
+          state.routerModel.centroid_classifiers?.[target]
+        );
   }
 
   return prediction;
+}
+
+function predictTargetLinear(tokens, classifier) {
+  const vector = vectorizeRouterTokens(tokens, classifier.idf);
+  const uniqueTokens = new Set(tokens);
+  const knownTokenCount = Array.from(uniqueTokens).filter((token) => classifier.idf[token] !== undefined).length;
+  const scores = classifier.labels.map((label) => {
+    const weights = classifier.coefficients[label];
+    let score = classifier.intercepts[label];
+
+    for (const [token, value] of Object.entries(vector)) {
+      score += value * (weights[token] ?? 0);
+    }
+
+    return { label, score };
+  });
+  const probabilities = scoresToProbabilities(scores, classifier.temperature ?? 1);
+  const confidence = probabilities[0].confidence;
+  const runnerUpConfidence = probabilities[1]?.confidence ?? 0;
+  const entropy = -probabilities.reduce((sum, item) => {
+    return sum + (item.confidence > 0 ? item.confidence * Math.log(item.confidence) : 0);
+  }, 0);
+
+  return {
+    label: probabilities[0].label,
+    confidence,
+    margin: confidence - runnerUpConfidence,
+    coverage: uniqueTokens.size > 0 ? knownTokenCount / uniqueTokens.size : 0,
+    normalizedEntropy: probabilities.length > 1 ? entropy / Math.log(probabilities.length) : 0,
+    alternatives: probabilities.slice(1, 3)
+  };
 }
 
 function tokenizeForRouter(text) {
@@ -810,47 +851,102 @@ function strongerPrivacy(ruleLabel, modelLabel) {
   return rank[ruleLabel] >= rank[modelLabel] ? ruleLabel : modelLabel;
 }
 
-function strongerDifficulty(ruleLabel, modelLabel) {
-  const rank = { easy: 0, medium: 1, hard: 2 };
-  return rank[ruleLabel] >= rank[modelLabel] ? ruleLabel : modelLabel;
+function selectTaskType(rules, prediction) {
+  if (rules.taskType !== "unknown") {
+    return rules.taskType;
+  }
+
+  const margin = prediction.margin ?? prediction.confidence;
+  const coverage = prediction.coverage ?? 1;
+
+  if (prediction.confidence >= 0.45 && margin >= 0.08 && coverage >= 0.15) {
+    return prediction.label;
+  }
+
+  return "simple_qa";
 }
 
-function deriveRouteClass(taskType, difficulty, privacy, rules, modelRouteClass) {
-  if (privacy === "high") {
-    if (taskType === "coding" || rules.coding) return "local_coder";
-    if (difficulty === "hard" || taskType === "math" || taskType === "reasoning") return "local_reasoning";
-    return "local_general";
+function assessPromptComplexity(prompt, taskType, rules, prediction) {
+  const text = prompt.toLowerCase();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  if (rules.factualQuestion && !rules.longPrompt) {
+    return {
+      label: "easy",
+      score: 0,
+      dimensions: { length: 0, reasoning: 0, scope: 0, constraints: 0, task: 0, ml: 0 }
+    };
   }
 
-  if (rules.longPrompt || modelRouteClass === "cloud_long_context") {
-    return "cloud_long_context";
+  const length = prompt.length > 1600 || wordCount > 180
+    ? 4
+    : prompt.length > 700 || wordCount > 70
+      ? 2
+      : wordCount > 35
+        ? 1
+        : 0;
+  const reasoning = /\b(proof|root cause|tradeoffs?|evaluate|analy[sz]e|reason through|optimi[sz]e|derive|validate each step|hidden assumptions?|identify risks?|review this (?:contract|legal|medical|financial))\b/.test(text)
+    ? 2
+    : 0;
+  const scope = /\b(across (?:multiple|several)|multi[- ](?:service|file|step|tenant)|distributed|end to end|large codebase|architecture|migration|production incident)\b/.test(text)
+    ? 2
+    : 0;
+  const constraints = Math.min(2, [
+    /\b(must|without|while preserving|subject to|constraint|requirement)\b/.test(text),
+    /\b(compare|alternatives?|pros and cons|risks? and dependencies)\b/.test(text),
+    (prompt.match(/[,;:]/g) ?? []).length >= 3
+  ].filter(Boolean).length);
+  const explicitLongContext = /\b(long|full|entire|complete)\b.{0,24}\b(document|transcript|report|repository|codebase|dataset)\b/.test(text)
+    || /\b\d+\s*(?:page|pages|files|documents)\b/.test(text);
+  const task = ["coding", "math", "planning", "data_analysis", "reasoning"].includes(taskType) ? 1 : 0;
+  const ml = difficultyEvidence(prediction);
+  let score = length + reasoning + scope + constraints + task + ml;
+
+  if (explicitLongContext) score += 6;
+  if (/\badvanced\b/.test(text) && ["math", "reasoning", "coding"].includes(taskType)) score += 2;
+  if (/\bdesign\b/.test(text) && /\b(migration|architecture|platform|system)\b/.test(text)) score += 1;
+  if (/\b(short|brief|one sentence|simple|basic|quick)\b/.test(text) && score < 4) score -= 1;
+
+  const label = score >= 6 ? "hard" : score >= 2 ? "medium" : "easy";
+  return {
+    label,
+    score: Math.max(0, score),
+    dimensions: { length, reasoning, scope, constraints, task, ml, longContext: explicitLongContext ? 4 : 0 }
+  };
+}
+
+function difficultyEvidence(prediction) {
+  const margin = prediction.margin ?? prediction.confidence;
+  const coverage = prediction.coverage ?? 1;
+
+  if (prediction.confidence < 0.55 || margin < 0.12 || coverage < 0.2) {
+    return 0;
   }
 
-  if (taskType === "coding") {
-    return difficulty === "hard" ? "cloud_strong" : "local_coder";
-  }
+  if (prediction.label === "hard") return 2;
+  if (prediction.label === "medium") return 1;
+  return 0;
+}
 
-  if (taskType === "math" || taskType === "reasoning") {
-    return difficulty === "hard" ? "cloud_strong" : "local_reasoning";
-  }
+function isPredictionUncertain(prediction) {
+  return ["task_type", "difficulty"].some((target) => {
+    const result = prediction[target];
+    return result.coverage < 0.15 || result.margin < 0.08 || result.normalizedEntropy > 0.85;
+  });
+}
 
-  if (taskType === "planning") {
-    return difficulty === "hard" ? "cloud_strong" : "cloud_fast";
-  }
-
-  if (taskType === "data_analysis") {
-    return difficulty === "hard" ? "cloud_strong" : "local_general";
-  }
-
-  if (difficulty === "easy") {
-    return "local_tiny";
-  }
-
-  if (taskType === "creative" || taskType === "translation") {
-    return "cloud_fast";
-  }
-
-  return modelRouteClass ?? "local_general";
+function routingConfidence(prediction, complexity) {
+  const taskConfidence = prediction.task_type.confidence;
+  const privacyConfidence = prediction.privacy.confidence;
+  const difficultyConfidence = prediction.difficulty.confidence;
+  const deterministicWeight = Math.min(1, complexity.score / 6);
+  const combined = (
+    taskConfidence * 0.35
+    + privacyConfidence * 0.35
+    + difficultyConfidence * 0.15
+    + (0.65 + deterministicWeight * 0.25) * 0.15
+  );
+  return Math.round(combined * 100);
 }
 
 function predictTargetHybrid(tokens, classifier, centroidClassifier) {
@@ -1009,70 +1105,40 @@ function isModelCompatibleWithSystemProfile(model) {
   return true;
 }
 
-function pickLocalModel(localModels, signals) {
-  if (signals.routeClass === "local_tiny") {
-    return localModels.find((model) => model.id === "llama3.2:1b")
-      ?? localModels.find((model) => model.id === "llama3.2:3b")
-      ?? localModels[0];
-  }
+function rankModels(models, signals) {
+  const requiredQuality = { easy: 1, medium: 2, hard: 3 }[signals.difficulty];
 
-  if (signals.routeClass === "local_general") {
-    return localModels.find((model) => model.id === "qwen3:4b")
-      ?? localModels.find((model) => model.id === "qwen2.5:3b")
-      ?? localModels.find((model) => model.id === "llama3.2:3b")
-      ?? localModels[0];
-  }
+  return models
+    .map((model) => {
+      const profile = model.routing_profile;
 
-  if (signals.routeClass === "local_coder") {
-    return localModels.find((model) => model.id === "qwen2.5-coder:7b")
-      ?? localModels.find((model) => model.id === "qwen3:4b")
-      ?? localModels[0];
-  }
+      if (!profile || profile.quality < requiredQuality) {
+        return { model, score: Number.NEGATIVE_INFINITY };
+      }
 
-  if (signals.routeClass === "local_reasoning") {
-    return localModels.find((model) => model.id === "deepseek-r1:7b")
-      ?? localModels.find((model) => model.id === "qwen3:4b")
-      ?? localModels[0];
-  }
-
-  if (signals.coding) {
-    return localModels.find((model) => model.id === "qwen2.5-coder:7b")
-      ?? localModels.find((model) => model.id === "qwen3:4b")
-      ?? localModels.find((model) => model.id === "qwen2.5:3b")
-      ?? localModels[0];
-  }
-
-  if (signals.complex || signals.longPrompt) {
-    return localModels.find((model) => model.id === "deepseek-r1:7b")
-      ?? localModels.find((model) => model.id === "qwen3:4b")
-      ?? localModels.find((model) => model.id === "qwen2.5:3b")
-      ?? localModels[0];
-  }
-
-  if (signals.simple) {
-    return localModels.find((model) => model.id === "llama3.2:1b")
-      ?? localModels.find((model) => model.id === "llama3.2:3b")
-      ?? localModels.find((model) => model.id === "qwen2.5:3b")
-      ?? localModels[0];
-  }
-
-  return localModels.find((model) => model.id === "qwen3:4b")
-    ?? localModels.find((model) => model.id === "qwen2.5:3b")
-    ?? localModels.find((model) => model.id === "llama3.2:3b")
-    ?? localModels.find((model) => model.id === "llama3.2:1b")
-    ?? localModels[0];
+      const taskFit = profile.tasks[signals.taskType] ?? 1;
+      const qualityOverhead = profile.quality - requiredQuality;
+      const contextFit = signals.longPrompt || signals.requiresLongContext
+        ? profile.context * 12
+        : profile.context * 2;
+      const uncertaintyBonus = signals.uncertain && profile.quality > requiredQuality ? 8 : 0;
+      const score = (
+        taskFit * 20
+        + profile.speed * 4
+        + profile.economy * 3
+        + contextFit
+        + uncertaintyBonus
+        - qualityOverhead * 6
+      );
+      return { model, score };
+    })
+    .filter((item) => Number.isFinite(item.score))
+    .sort((left, right) => right.score - left.score)
+    .map((item) => item.model);
 }
 
-function pickCloudModel(cloudModels, signals) {
-  if (signals.routeClass === "cloud_long_context" || signals.longPrompt) {
-    return cloudModels.find((model) => model.id === "gemini-3.5-flash") ?? cloudModels[0];
-  }
-
-  if (signals.routeClass === "cloud_strong" || signals.complex || signals.coding) {
-    return cloudModels.find((model) => model.id === "qwen/qwen3-32b") ?? cloudModels[0];
-  }
-
-  return cloudModels.find((model) => model.id === "llama-3.1-8b-instant") ?? cloudModels[0];
+function capitalize(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 async function sendOllamaChatMessage(model, assistantMessage) {

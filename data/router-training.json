@@ -29,6 +29,90 @@
       "route_class": "local_tiny"
     },
     {
+      "text": "What is an IPO?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "What is inflation?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Who is a company CEO?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Why do companies issue stock?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "How does compound interest work?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "What does a mortgage mean?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Explain photosynthesis briefly.",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "What is the purpose of a balance sheet?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "How does a search engine work at a basic level?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "What is the difference between revenue and profit?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Why is the sky blue?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "What does diversification mean in investing?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
       "text": "Classify these support tickets into billing, bug, or account categories.",
       "task_type": "data_analysis",
       "difficulty": "easy",

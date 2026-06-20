@@ -6,11 +6,15 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TRAINING_PATH = PROJECT_ROOT / "data" / "router-training.json"
 EVAL_PATH = PROJECT_ROOT / "data" / "router-eval.json"
 MODEL_PATH = PROJECT_ROOT / "data" / "router-model.json"
-TARGETS = ["task_type", "difficulty", "privacy", "route_class"]
+TARGETS = ["task_type", "difficulty", "privacy"]
 TRAIN_TEST_SEED = 42
 TEST_RATIO = 0.2
 MIN_TRAINING_EXAMPLES = 500
@@ -19,6 +23,9 @@ ALPHA = 0.7
 CHAR_NGRAM_RANGE = (4, 5)
 CENTROID_WEIGHT = 1.0
 NAIVE_BAYES_WEIGHT = 0.0
+LINEAR_MAX_ITERATIONS = 2000
+CALIBRATION_TEMPERATURES = np.linspace(0.5, 3.0, 51)
+MAX_FEATURES_PER_CLASS = 700
 
 STOP_WORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in",
@@ -75,57 +82,55 @@ def main():
         {**example, "tokens": tokenize(example["text"])}
         for example in eval_data["examples"]
     ]
-    full_vocabulary = build_vocabulary(examples)
     holdout_metrics = {}
     split_summary = {}
+    calibration_temperatures = {}
 
     for target in TARGETS:
         target_train_examples, target_test_examples = split_examples(examples, target)
-        target_train_vocabulary = build_vocabulary(target_train_examples)
-        evaluation_classifier = train_naive_bayes(
+        evaluation_vectorizer, evaluation_classifier = train_linear_classifier(
             target_train_examples,
-            target_train_vocabulary,
             target,
             training_data["labels"][target],
         )
-        evaluation_centroid = train_centroid(
-            target_train_examples,
-            target_train_vocabulary,
-            target,
-            training_data["labels"][target],
+        calibration_matrix = evaluation_vectorizer.transform(
+            example["text"] for example in target_test_examples
         )
+        evaluation_classifier.calibration_temperature_ = calibrate_temperature(
+            evaluation_classifier.decision_function(calibration_matrix),
+            [example[target] for example in target_test_examples],
+            evaluation_classifier.classes_,
+        )
+        calibration_temperatures[target] = evaluation_classifier.calibration_temperature_
         holdout_metrics[target] = {
-            "naive_bayes": evaluate_target_naive_bayes(target_test_examples, evaluation_classifier, target),
-            "centroid": evaluate_target_centroid(target_test_examples, evaluation_centroid, target),
-            "hybrid": evaluate_target_hybrid(target_test_examples, evaluation_classifier, evaluation_centroid, target),
+            "linear": evaluate_target_linear(
+                target_test_examples,
+                evaluation_vectorizer,
+                evaluation_classifier,
+                target,
+            ),
         }
         split_summary[target] = {
             "train_examples": len(target_train_examples),
             "test_examples": len(target_test_examples),
         }
 
-    final_classifiers = {
-        target: train_naive_bayes(
+    final_linear_classifiers = {}
+    final_vectorizers = {}
+
+    for target in TARGETS:
+        vectorizer, classifier = train_linear_classifier(
             examples,
-            full_vocabulary,
             target,
             training_data["labels"][target],
         )
-        for target in TARGETS
-    }
-    final_centroid_classifiers = {
-        target: train_centroid(
-            examples,
-            full_vocabulary,
-            target,
-            training_data["labels"][target],
-        )
-        for target in TARGETS
-    }
+        classifier.calibration_temperature_ = calibration_temperatures[target]
+        final_vectorizers[target] = vectorizer
+        final_linear_classifiers[target] = export_linear_classifier(vectorizer, classifier)
 
     model = {
-        "schema_version": 3,
-        "model_type": "python_hybrid_naive_bayes_centroid",
+        "schema_version": 4,
+        "model_type": "tfidf_logistic_regression",
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "training_examples": len(examples),
         "base_training_examples": len(base_examples),
@@ -140,28 +145,37 @@ def main():
             "engineered_features": ["privacy_terms", "coding_terms", "complex_terms", "prompt_length"],
             "stop_words": sorted(STOP_WORDS),
             "min_token_count": MIN_TOKEN_COUNT,
-            "alpha": ALPHA,
-        },
-        "ensemble": {
-            "naive_bayes_weight": NAIVE_BAYES_WEIGHT,
-            "centroid_weight": CENTROID_WEIGHT,
+            "sublinear_tf": True,
+            "l2_normalize": True,
         },
         "split": {
             "seed": TRAIN_TEST_SEED,
             "test_ratio": TEST_RATIO,
             "by_target": split_summary,
         },
-        "vocabulary": full_vocabulary,
         "targets": TARGETS,
-        "classifiers": final_classifiers if NAIVE_BAYES_WEIGHT > 0 else None,
-        "centroid_classifiers": final_centroid_classifiers,
+        "linear_classifiers": final_linear_classifiers,
         "metrics": {
-            "train": evaluate(examples, final_classifiers, final_centroid_classifiers),
+            "train": {
+                target: evaluate_exported_linear(
+                    examples,
+                    final_linear_classifiers[target],
+                    target,
+                )
+                for target in TARGETS
+            },
             "holdout": holdout_metrics,
-            "eval": evaluate(eval_examples, final_classifiers, final_centroid_classifiers),
+            "eval": {
+                target: evaluate_exported_linear(
+                    eval_examples,
+                    final_linear_classifiers[target],
+                    target,
+                )
+                for target in TARGETS
+            },
         },
         "top_tokens": {
-            target: top_tokens(final_classifiers[target], limit=8)
+            target: top_linear_tokens(final_linear_classifiers[target], limit=8)
             for target in TARGETS
         },
     }
@@ -743,6 +757,147 @@ def split_examples(examples, stratify_key):
     return train_examples, test_examples
 
 
+def train_linear_classifier(examples, target, labels):
+    vectorizer = TfidfVectorizer(
+        analyzer=tokenize,
+        lowercase=False,
+        min_df=MIN_TOKEN_COUNT,
+        sublinear_tf=True,
+        norm="l2",
+    )
+    matrix = vectorizer.fit_transform(example["text"] for example in examples)
+    expected_labels = [example[target] for example in examples]
+    classifier = LogisticRegression(
+        max_iter=LINEAR_MAX_ITERATIONS,
+        class_weight="balanced",
+        random_state=TRAIN_TEST_SEED,
+    )
+    classifier.fit(matrix, expected_labels)
+
+    missing_labels = set(labels) - set(classifier.classes_)
+    if missing_labels:
+        raise ValueError(f"Linear classifier for {target} is missing labels: {sorted(missing_labels)}")
+
+    classifier.calibration_temperature_ = 1.0
+    return vectorizer, classifier
+
+
+def calibrate_temperature(logits, expected_labels, classes):
+    logits = np.asarray(logits)
+    class_indexes = {label: index for index, label in enumerate(classes)}
+    expected_indexes = np.array([class_indexes[label] for label in expected_labels])
+    best_temperature = 1.0
+    best_loss = float("inf")
+
+    for temperature in CALIBRATION_TEMPERATURES:
+        probabilities = softmax_matrix(logits / temperature)
+        selected = probabilities[np.arange(len(expected_indexes)), expected_indexes]
+        loss = -np.log(np.clip(selected, 1e-12, 1)).mean()
+
+        if loss < best_loss:
+            best_loss = loss
+            best_temperature = float(temperature)
+
+    return round(best_temperature, 3)
+
+
+def softmax_matrix(logits):
+    shifted = logits - np.max(logits, axis=1, keepdims=True)
+    exponentials = np.exp(shifted)
+    return exponentials / exponentials.sum(axis=1, keepdims=True)
+
+
+def export_linear_classifier(vectorizer, classifier):
+    feature_names = vectorizer.get_feature_names_out()
+    coefficients = {}
+    retained_features = set()
+
+    for class_index, label in enumerate(classifier.classes_):
+        weights = classifier.coef_[class_index]
+        strongest_indexes = np.argsort(np.abs(weights))[-MAX_FEATURES_PER_CLASS:]
+        coefficients[label] = {}
+
+        for index in strongest_indexes:
+            token = feature_names[index]
+            coefficients[label][token] = round(float(weights[index]), 6)
+            retained_features.add(token)
+
+    return {
+        "labels": classifier.classes_.tolist(),
+        "idf": {
+            feature_names[index]: round(float(value), 6)
+            for index, value in enumerate(vectorizer.idf_)
+            if feature_names[index] in retained_features
+        },
+        "intercepts": {
+            label: round(float(classifier.intercept_[index]), 6)
+            for index, label in enumerate(classifier.classes_)
+        },
+        "coefficients": coefficients,
+        "temperature": classifier.calibration_temperature_,
+    }
+
+
+def predict_exported_linear(text, classifier):
+    tokens = tokenize(text)
+    counts = Counter(token for token in tokens if token in classifier["idf"])
+    vector = {}
+
+    for token, count in counts.items():
+        vector[token] = (1 + math.log(count)) * classifier["idf"][token]
+
+    vector = normalize_vector(vector)
+    scores = []
+
+    for label in classifier["labels"]:
+        score = classifier["intercepts"][label]
+        weights = classifier["coefficients"][label]
+
+        for token, value in vector.items():
+            score += value * weights.get(token, 0)
+
+        scores.append({"label": label, "score": score})
+
+    return with_probabilities(scores, classifier["temperature"])
+
+
+def evaluate_target_linear(examples, vectorizer, classifier, target):
+    exported = export_linear_classifier(vectorizer, classifier)
+    return evaluate_exported_linear(examples, exported, target)
+
+
+def evaluate_exported_linear(examples, classifier, target):
+    correct = 0
+    confusion_matrix = {
+        label: {predicted_label: 0 for predicted_label in classifier["labels"]}
+        for label in classifier["labels"]
+    }
+
+    for example in examples:
+        prediction = predict_exported_linear(example["text"], classifier)[0]["label"]
+        expected = example[target]
+        confusion_matrix[expected][prediction] += 1
+        correct += prediction == expected
+
+    return {
+        "correct": correct,
+        "total": len(examples),
+        "accuracy": round(correct / len(examples), 3),
+        "confusion_matrix": confusion_matrix,
+    }
+
+
+def top_linear_tokens(classifier, limit):
+    return {
+        label: sorted(
+            weights.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:limit]
+        for label, weights in classifier["coefficients"].items()
+    }
+
+
 def build_vocabulary(examples):
     counts = Counter()
 
@@ -1055,7 +1210,7 @@ def with_probabilities(scores, temperature=1):
     max_score = max(item["score"] for item in scores)
     denominator = sum(math.exp((item["score"] - max_score) / temperature) for item in scores)
 
-    return [
+    probabilities = [
         {
             "label": item["label"],
             "score": item["score"],
@@ -1063,6 +1218,7 @@ def with_probabilities(scores, temperature=1):
         }
         for item in scores
     ]
+    return sorted(probabilities, key=lambda item: item["probability"], reverse=True)
 
 
 def top_tokens(classifier, limit):
@@ -1089,17 +1245,16 @@ def print_summary(model):
         f"({model['base_training_examples']} base + {model['augmented_training_examples']} augmented)"
     )
     print(f"Separate eval examples: {model['eval_examples']}")
-    print(f"Vocabulary: {len(model['vocabulary'])}")
     print("Internal holdout: stratified separately for each target")
 
     for target in TARGETS:
-        train_metric = model["metrics"]["train"][target]["hybrid"]
-        holdout_metric = model["metrics"]["holdout"][target]["hybrid"]
-        eval_metric = model["metrics"]["eval"][target]["hybrid"]
+        train_metric = model["metrics"]["train"][target]
+        holdout_metric = model["metrics"]["holdout"][target]["linear"]
+        eval_metric = model["metrics"]["eval"][target]
         print(
             f"{target}: "
-            f"hybrid train={train_metric['correct']}/{train_metric['total']} accuracy={train_metric['accuracy']} "
-            f"hybrid holdout={holdout_metric['correct']}/{holdout_metric['total']} accuracy={holdout_metric['accuracy']} "
+            f"linear train={train_metric['correct']}/{train_metric['total']} accuracy={train_metric['accuracy']} "
+            f"linear holdout={holdout_metric['correct']}/{holdout_metric['total']} accuracy={holdout_metric['accuracy']} "
             f"eval={eval_metric['correct']}/{eval_metric['total']} accuracy={eval_metric['accuracy']}"
         )
 

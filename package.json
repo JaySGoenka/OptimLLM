@@ -8,6 +8,7 @@
     "companion": "node scripts/local-companion.js",
     "train:router": "python3 scripts/train_router.py",
     "train:router:js": "node scripts/train-router.js",
+    "eval:router": "node scripts/eval-router-policy.js",
     "dev:static": "python3 -m http.server 5173 --bind 127.0.0.1",
     "dev:vercel": "vercel dev",
     "check:json": "python3 -m json.tool data/model-capabilities.json > /dev/null && python3 -m json.tool data/router-training.json > /dev/null && python3 -m json.tool data/router-eval.json > /dev/null && python3 -m json.tool data/router-model.json > /dev/null"

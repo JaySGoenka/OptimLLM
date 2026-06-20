@@ -23,36 +23,46 @@ When `auto_router` is selected, OptimLLM follows this flow:
 
 1. **Analyze the prompt**
 
-   The browser loads `data/router-model.json` and predicts signals such as:
+   The browser loads `data/router-model.json` and predicts supporting signals:
 
    - task type: coding, summarization, reasoning, math, creative writing, simple Q&A, data analysis, translation, or planning
    - difficulty: easy, medium, or hard
    - privacy risk: low, medium, or high
-   - route class: local tiny, local general, local coder, local reasoning, cloud fast, cloud strong, or cloud long-context
 
-2. **Apply safety rules**
+2. **Estimate complexity**
+
+   A separate policy engine scores prompt length, reasoning depth, scope,
+   constraints, task requirements, referenced input size, classifier
+   uncertainty, and out-of-vocabulary coverage. The learned classifier does not
+   directly choose a model.
+
+3. **Apply safety and routing rules**
 
    The router does not rely on ML alone. It also checks for obvious sensitive content such as credentials, medical/legal/financial terms, customer data, emails, and similar private signals.
 
-   Private-looking prompts are not automatically sent to cloud. If no usable local model is available, the router asks the user to choose manually.
+   Local models are eligible only for easy prompts. Medium and hard prompts use
+   cloud models. Private medium or hard prompts cause the router to abstain
+   because automatic cloud use and medium/hard local use are both blocked.
 
-3. **Check available models**
+4. **Check available models**
 
    The app checks which local Ollama models are installed and which cloud routes are configured.
 
-4. **Check hardware fit**
+5. **Check hardware fit**
 
    If the local companion is running, the router filters local models by known hardware requirements such as RAM and GPU availability.
 
-5. **Pick a model**
+6. **Rank models**
 
-   The final choice is based on prompt fit, privacy, model availability, hardware compatibility, and whether a stronger cloud route is appropriate.
+   Eligible models receive a capability score based on task fit, required
+   quality tier, speed, cost, context capacity, uncertainty, model availability,
+   and hardware compatibility.
 
 Examples:
 
 - A short public explanation can use a small local model.
 - A private email or contract should stay local.
-- A medium coding task can use a local coder model if installed and compatible.
+- A medium coding task uses a capable cloud model.
 - A hard architecture, math, or reasoning task can use a stronger cloud model when privacy allows.
 - A very long document can use a long-context cloud model when privacy allows.
 
@@ -157,10 +167,21 @@ The browser loads that file at startup. If it is unavailable, the app falls back
 Retrain the router after changing routing examples:
 
 ```bash
+python3 -m pip install -r requirements-router.txt
 npm run train:router
 ```
 
-The current trainer builds a lightweight browser-loadable classifier and keeps privacy and difficulty conservative with extra deterministic safeguards in the frontend.
+The trainer builds browser-loadable TF-IDF logistic-regression classifiers for
+task type, difficulty, and privacy. The frontend uses
+the prompt predictions together with deterministic privacy checks, installed
+models, hardware compatibility, task complexity, and confidence/coverage
+thresholds to choose the final route.
+
+Evaluate the routing policy independently from classifier training:
+
+```bash
+npm run eval:router
+```
 
 ## npm Scripts
 

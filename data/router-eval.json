@@ -8,6 +8,27 @@
   },
   "examples": [
     {
+      "text": "What is an initial public offering?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Can you explain what a dividend is?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
+      "text": "Why do leaves change color?",
+      "task_type": "simple_qa",
+      "difficulty": "easy",
+      "privacy": "low",
+      "route_class": "local_tiny"
+    },
+    {
       "text": "What does a reverse proxy do? Keep the answer short.",
       "task_type": "simple_qa",
       "difficulty": "easy",

@@ -1,6 +1,17 @@
 {
   "schema_version": 2,
   "updated_at": "2026-06-15",
+  "routing_profiles": {
+    "llama3.2:1b": {"quality": 1, "speed": 3, "economy": 3, "context": 2, "tasks": {"simple_qa": 3, "summarization": 2, "translation": 2, "creative": 1}},
+    "llama3.2:3b": {"quality": 1, "speed": 3, "economy": 3, "context": 2, "tasks": {"simple_qa": 3, "summarization": 3, "translation": 2, "creative": 2}},
+    "qwen2.5:3b": {"quality": 1, "speed": 2, "economy": 3, "context": 2, "tasks": {"simple_qa": 3, "summarization": 3, "translation": 3, "creative": 2, "data_analysis": 2}},
+    "qwen3:4b": {"quality": 1, "speed": 2, "economy": 2, "context": 2, "tasks": {"simple_qa": 3, "summarization": 3, "reasoning": 2, "math": 2, "data_analysis": 2}},
+    "qwen2.5-coder:7b": {"quality": 1, "speed": 1, "economy": 2, "context": 2, "tasks": {"coding": 3, "simple_qa": 1}},
+    "deepseek-r1:7b": {"quality": 1, "speed": 1, "economy": 2, "context": 2, "tasks": {"reasoning": 3, "math": 3, "simple_qa": 1}},
+    "llama-3.1-8b-instant": {"quality": 2, "speed": 3, "economy": 3, "context": 2, "tasks": {"simple_qa": 3, "summarization": 3, "translation": 3, "creative": 3, "planning": 2, "data_analysis": 2, "coding": 1, "reasoning": 1, "math": 1}},
+    "qwen/qwen3-32b": {"quality": 3, "speed": 1, "economy": 2, "context": 2, "tasks": {"coding": 3, "reasoning": 3, "math": 3, "planning": 3, "data_analysis": 3, "simple_qa": 3, "summarization": 3, "translation": 3, "creative": 3}},
+    "gemini-3.5-flash": {"quality": 3, "speed": 2, "economy": 2, "context": 3, "tasks": {"simple_qa": 3, "summarization": 3, "translation": 3, "creative": 3, "planning": 3, "data_analysis": 3, "coding": 2, "reasoning": 3, "math": 2}}
+  },
   "models": [
     {
       "id": "llama3.2:1b",

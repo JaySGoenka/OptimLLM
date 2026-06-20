@@ -1,0 +1,57 @@
+The project already has the core prototype working: UI, local Ollama discovery/install/chat, cloud proxying, auto routing, a trained
+  browser router, and optional hardware profiling.
+
+  What’s left is mostly turning it from a working demo into a reliable product.
+
+  Main Gaps
+
+  1. Router reliability
+     The router works, but it needs a stronger evaluation loop. Right now it uses a small eval set, static labeled examples, and
+     deterministic safeguards. Next work should add more realistic prompts, edge cases, misroute tracking, and regression tests around
+     selectAutoRoute.
+
+  2. User feedback
+     There is no way for users to say “this route was good/bad.” That feedback is essential if the router is the product. Add route
+     decision logging, thumbs up/down, expected route correction, and exportable training examples.
+
+  3. Provider readiness
+     Cloud provider support exists, but there are no provider health checks, model availability checks, quota warnings, retry logic,
+     timeout handling, or graceful fallback when one provider fails.
+
+  4. Persistent chat/history
+     Current chat history only lives in browser memory. There are no saved conversations, route history, settings persistence, or user
+     profiles.
+
+  5. Local companion packaging
+     The hardware companion works as a Node script, but non-developer users will not want to run npm run companion. This needs an
+     installer or desktop helper.
+
+  6. Testing
+     The project needs tests around routing decisions, cloud API validation, local model compatibility, privacy blocking, and JSON
+     model integrity. The routing code is the highest-value test target.
+
+  7. Security/privacy polish
+     The privacy guardrails are a good start, but the app needs clearer consent around cloud routing, stronger redaction/detection
+     tests, and probably a “never cloud” mode.
+
+  8. Deployment/product polish
+     Vercel deployment is configured, but the deployed app still depends on users configuring local Ollama CORS and optional local
+     services. That flow needs better onboarding and failure recovery.
+
+  Next Phase
+
+  The next phase should be a routing quality and beta-readiness phase.
+
+  I would prioritize it like this:
+
+  1. Add a route decision test suite for src/app.js, especially private prompts, no-local-model cases, hard coding prompts, long
+     prompts, and hardware-incompatible local models.
+
+  2. Add provider health checks and fallback behavior.
+  3. Add user feedback on route decisions.
+  4. Expand router-eval.json with realistic prompts and track eval metrics after every retrain.
+  5. Persist basic settings and chat/route history locally.
+  6. Package or simplify the local companion setup.
+
+  In short: the prototype proves the concept. The next phase is making the router trustworthy, measurable, and usable by someone who
+  did not build it.

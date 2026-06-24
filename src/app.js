@@ -1,8 +1,11 @@
 const MODEL_DB_URL = "/data/model-capabilities.json";
 const ROUTER_MODEL_URL = "/data/router-model.json";
+const ROUTER_TRAINING_URL = "/data/router-training.json";
 const OLLAMA_BASE_URL = "http://localhost:11434";
 const COMPANION_BASE_URL = "http://127.0.0.1:43110";
 const AUTO_ROUTE_ID = "__auto_router__";
+const CHAT_STORAGE_KEY = "optimllm.conversations.v1";
+const SEMANTIC_STRONG_THRESHOLD = 0.68;
 const ROUTER_STOP_WORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into",
   "is", "it", "me", "my", "of", "on", "or", "that", "the", "this", "to", "with"
@@ -44,41 +47,64 @@ const state = {
   companionOnline: false,
   systemProfile: null,
   providerFilter: "all",
-  selectedModelId: null,
+  selectedModelId: AUTO_ROUTE_ID,
+  conversations: [],
+  activeConversationId: null,
   messages: [],
-  responseInFlight: false
+  responseInFlight: false,
+  semanticExamples: [],
+  semanticEmbeddings: null,
+  semanticEmbeddingModel: null,
+  autoModeEnabled: false,
+  usageEvents: []
 };
 
 const elements = {
-  ollamaStatus: document.querySelector("#ollamaStatus"),
-  companionStatus: document.querySelector("#companionStatus"),
-  appOriginLabel: document.querySelector("#appOriginLabel"),
-  modelTableBody: document.querySelector("#modelTableBody"),
-  routeSelect: document.querySelector("#routeSelect"),
-  refreshOllamaButton: document.querySelector("#refreshOllamaButton"),
-  pullModelButton: document.querySelector("#pullModelButton"),
-  refreshCompanionButton: document.querySelector("#refreshCompanionButton"),
-  copyStartCommandButton: document.querySelector("#copyStartCommandButton"),
-  copyCorsCommandButton: document.querySelector("#copyCorsCommandButton"),
-  copyCompanionCommandButton: document.querySelector("#copyCompanionCommandButton"),
-  setupCommand: document.querySelector("#setupCommand"),
-  systemProfilePanel: document.querySelector("#systemProfilePanel"),
-  pullLog: document.querySelector("#pullLog"),
   selectedModelSummary: document.querySelector("#selectedModelSummary"),
+  activeChatTitle: document.querySelector("#activeChatTitle"),
+  chatHistory: document.querySelector("#chatHistory"),
+  newChatButton: document.querySelector("#newChatButton"),
+  openSidebarButton: document.querySelector("#openSidebarButton"),
+  closeSidebarButton: document.querySelector("#closeSidebarButton"),
+  sidebarBackdrop: document.querySelector("#sidebarBackdrop"),
+  modelPicker: document.querySelector("#modelPicker"),
+  modelPickerButton: document.querySelector("#modelPickerButton"),
+  modelMenu: document.querySelector("#modelMenu"),
+  routingModeLabel: document.querySelector("#routingModeLabel"),
+  routingStatusDot: document.querySelector("#routingStatusDot"),
+  routingStatusText: document.querySelector("#routingStatusText"),
+  exportFeedbackButton: document.querySelector("#exportFeedbackButton"),
+  feedbackCount: document.querySelector("#feedbackCount"),
+  enableAutoModeButton: document.querySelector("#enableAutoModeButton"),
+  autoModeStatus: document.querySelector("#autoModeStatus"),
   messages: document.querySelector("#messages"),
   chatForm: document.querySelector("#chatForm"),
   promptInput: document.querySelector("#promptInput"),
   submitButton: document.querySelector("#chatForm button[type='submit']"),
-  clearChatButton: document.querySelector("#clearChatButton"),
-  filterButtons: document.querySelectorAll("[data-provider-filter]")
+  clearChatButton: document.querySelector("#clearChatButton")
 };
 
 async function init() {
-  await Promise.all([loadModelDatabase(), loadRouterModel()]);
-  renderLocalSetup();
+  await Promise.all([loadModelDatabase(), loadRouterModel(), loadSemanticExamples()]);
+  loadConversations();
   bindEvents();
   await Promise.all([refreshOllamaStatus(), refreshCompanionStatus()]);
   render();
+  elements.promptInput.focus();
+}
+
+async function loadSemanticExamples() {
+  try {
+    const response = await fetch(ROUTER_TRAINING_URL);
+    if (!response.ok) throw new Error(`Training examples returned ${response.status}`);
+    const data = await response.json();
+    state.semanticExamples = (data.examples ?? []).filter((example) => (
+      typeof example.text === "string"
+      && typeof example.route_class === "string"
+    ));
+  } catch (error) {
+    state.semanticExamples = [];
+  }
 }
 
 async function loadRouterModel() {
@@ -112,53 +138,357 @@ async function loadModelDatabase() {
 }
 
 function bindEvents() {
-
-  // For each filter button listen for clicks to update the providerFilter state and re-render the model table.
-  elements.filterButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      state.providerFilter = button.dataset.providerFilter;
-      elements.filterButtons.forEach((item) => item.classList.toggle("active", item === button));
-      render();
-    });
-  });
-
-  // Listen for changes to the route select dropdown to update the selectedModelId state and re-render the model summary.
-  elements.routeSelect.addEventListener("change", () => {
-    state.selectedModelId = elements.routeSelect.value;
+  elements.newChatButton.addEventListener("click", createNewConversation);
+  elements.clearChatButton.addEventListener("click", () => {
+    const conversation = getActiveConversation();
+    if (!conversation || conversation.messages.length === 0) return;
+    conversation.messages = [];
+    conversation.title = "New chat";
+    conversation.updatedAt = Date.now();
+    state.messages = conversation.messages;
+    persistConversations();
     render();
   });
 
-  // Listen for clicks on the refresh button to check Ollama's status and update the UI accordingly.
-  elements.refreshOllamaButton.addEventListener("click", refreshOllamaStatus);
-  elements.refreshCompanionButton.addEventListener("click", refreshCompanionStatus);
-
-  elements.copyStartCommandButton.addEventListener("click", () => {
-    copySetupCommand(getStartCommand(), "Copied the local Ollama start command.");
+  const closeSidebar = () => document.body.classList.remove("sidebar-open");
+  elements.openSidebarButton.addEventListener("click", () => document.body.classList.add("sidebar-open"));
+  elements.closeSidebarButton.addEventListener("click", closeSidebar);
+  elements.sidebarBackdrop.addEventListener("click", closeSidebar);
+  elements.enableAutoModeButton.addEventListener("click", enableAutoMode);
+  elements.exportFeedbackButton.addEventListener("click", exportRouterTrainingData);
+  elements.modelPickerButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setModelMenuOpen(elements.modelMenu.hidden);
   });
 
-  elements.copyCorsCommandButton.addEventListener("click", () => {
-    copySetupCommand(getCorsCommand(), "Copied the command that allows this Vercel URL to reach Ollama.");
+  elements.modelMenu.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-model-id]");
+    if (!option) return;
+    state.selectedModelId = option.dataset.modelId;
+    setModelMenuOpen(false);
+    render();
   });
 
-  elements.copyCompanionCommandButton.addEventListener("click", () => {
-    copyText(getCompanionCommand(), "Copied the local companion command.");
-    elements.systemProfilePanel.textContent = getCompanionCommand();
-  });
-  
-  // Listen for clicks on the pull model button to start the installation process for the selected local model.
-  elements.pullModelButton.addEventListener("click", pullSelectedLocalModel);
-  
-  // Listen for clicks on the clear chat button to clear the chat messages.
-  elements.clearChatButton.addEventListener("click", () => {
-    state.messages = [];
-    elements.messages.innerHTML = "";
+  document.addEventListener("click", (event) => {
+    if (!elements.modelPicker.contains(event.target) && !elements.modelPickerButton.contains(event.target)) {
+      setModelMenuOpen(false);
+    }
   });
 
-  // Listen for form submission and route the message based on the selected model.
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setModelMenuOpen(false);
+  });
+
   elements.chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await sendChatMessage();
   });
+
+  elements.promptInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      elements.chatForm.requestSubmit();
+    }
+  });
+
+  elements.promptInput.addEventListener("input", autoResizeComposer);
+
+  elements.messages.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest("[data-copy-code]");
+    if (copyButton) {
+      const code = copyButton.closest(".code-block")?.querySelector("code")?.textContent ?? "";
+      await navigator.clipboard.writeText(code);
+      copyButton.textContent = "Copied";
+      window.setTimeout(() => {
+        copyButton.textContent = "Copy";
+      }, 1400);
+      return;
+    }
+
+    const feedbackButton = event.target.closest("[data-route-feedback]");
+    if (feedbackButton) {
+      setRouteFeedback(feedbackButton.dataset.messageId, feedbackButton.dataset.routeFeedback);
+    }
+  });
+
+  elements.messages.addEventListener("change", (event) => {
+    const correctionSelect = event.target.closest("[data-route-correction]");
+    if (!correctionSelect) return;
+    setExpectedRoute(correctionSelect.dataset.messageId, correctionSelect.value);
+  });
+}
+
+function loadConversations() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY));
+    state.conversations = Array.isArray(saved?.conversations)
+      ? saved.conversations
+          .filter((conversation) => (
+            conversation
+            && typeof conversation.id === "string"
+            && Array.isArray(conversation.messages)
+          ))
+          .map((conversation) => ({
+            ...conversation,
+            messages: conversation.messages.map((message) => ({
+              ...message,
+              id: message.id ?? createId("message"),
+              content: message.role === "assistant"
+                ? stripThinkContent(message.content)
+                : message.content
+            }))
+          }))
+      : [];
+    state.activeConversationId = saved?.activeConversationId ?? null;
+    const savedUsage = JSON.parse(localStorage.getItem("optimllm.usage.v1"));
+    state.usageEvents = Array.isArray(savedUsage) ? savedUsage : [];
+  } catch (error) {
+    state.conversations = [];
+    state.activeConversationId = null;
+    state.usageEvents = [];
+  }
+
+  if (state.conversations.length === 0) {
+    const conversation = makeConversation();
+    state.conversations.push(conversation);
+    state.activeConversationId = conversation.id;
+  }
+
+  if (!getActiveConversation()) {
+    state.activeConversationId = state.conversations[0].id;
+  }
+
+  state.messages = getActiveConversation().messages;
+}
+
+function makeConversation() {
+  return {
+    id: globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: "New chat",
+    messages: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function createId(prefix) {
+  return globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getActiveConversation() {
+  return state.conversations.find((conversation) => conversation.id === state.activeConversationId);
+}
+
+function createNewConversation() {
+  if (state.responseInFlight) return;
+
+  const current = getActiveConversation();
+  if (current?.messages.length === 0) {
+    elements.promptInput.focus();
+    document.body.classList.remove("sidebar-open");
+    return;
+  }
+
+  const conversation = makeConversation();
+  state.conversations.unshift(conversation);
+  state.activeConversationId = conversation.id;
+  state.messages = conversation.messages;
+  persistConversations();
+  render();
+  document.body.classList.remove("sidebar-open");
+  elements.promptInput.focus();
+}
+
+function switchConversation(conversationId) {
+  if (state.responseInFlight || conversationId === state.activeConversationId) return;
+  const conversation = state.conversations.find((item) => item.id === conversationId);
+  if (!conversation) return;
+
+  state.activeConversationId = conversation.id;
+  state.messages = conversation.messages;
+  persistConversations();
+  render();
+  document.body.classList.remove("sidebar-open");
+  elements.promptInput.focus();
+}
+
+function deleteConversation(conversationId) {
+  if (state.responseInFlight) return;
+  state.conversations = state.conversations.filter((conversation) => conversation.id !== conversationId);
+
+  if (state.conversations.length === 0) {
+    state.conversations.push(makeConversation());
+  }
+
+  if (state.activeConversationId === conversationId || !getActiveConversation()) {
+    state.activeConversationId = state.conversations[0].id;
+  }
+
+  state.messages = getActiveConversation().messages;
+  persistConversations();
+  render();
+}
+
+function persistConversations() {
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
+      activeConversationId: state.activeConversationId,
+      conversations: state.conversations
+    }));
+  } catch (error) {
+    console.warn("Chat history could not be saved.", error);
+  }
+}
+
+function autoResizeComposer() {
+  elements.promptInput.style.height = "auto";
+  elements.promptInput.style.height = `${Math.min(elements.promptInput.scrollHeight, 180)}px`;
+}
+
+function setModelMenuOpen(open) {
+  elements.modelMenu.hidden = !open;
+  elements.modelPickerButton.setAttribute("aria-expanded", String(open));
+}
+
+async function enableAutoMode() {
+  if (state.responseInFlight) return;
+  elements.enableAutoModeButton.disabled = true;
+  elements.autoModeStatus.textContent = "Checking local companion…";
+
+  if (!state.companionOnline) {
+    await refreshCompanionStatus();
+  }
+
+  if (!state.companionOnline) {
+    elements.autoModeStatus.textContent = "Companion required—run npm run companion";
+    elements.enableAutoModeButton.disabled = false;
+    return;
+  }
+
+  try {
+    const localModels = state.models
+      .filter((model) => model.local && model.enabled && model.auto_install_supported)
+      .map((model) => ({
+        id: model.id,
+        local_priority: model.local_priority ?? 0,
+        hardware: model.hardware
+      }));
+    const response = await fetch(`${COMPANION_BASE_URL}/auto-mode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ models: localModels, origin: window.location.origin })
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || "Could not enable auto mode.");
+    }
+
+    state.systemProfile = data.profile ?? state.systemProfile;
+    state.semanticEmbeddingModel = data.embedding_model;
+    state.autoModeEnabled = true;
+    elements.autoModeStatus.textContent = `Preparing semantic router with ${data.embedding_model}…`;
+    await buildSemanticIndex();
+    await refreshOllamaStatus();
+    elements.enableAutoModeButton.classList.add("enabled");
+    elements.autoModeStatus.textContent = data.selected_model
+      ? `Ready with ${data.selected_model}`
+      : "Semantic routing ready";
+  } catch (error) {
+    state.autoModeEnabled = false;
+    elements.autoModeStatus.textContent = error.message;
+  } finally {
+    elements.enableAutoModeButton.disabled = false;
+  }
+}
+
+async function buildSemanticIndex() {
+  if (state.semanticExamples.length === 0) return;
+  const result = await requestLocalEmbeddings(state.semanticExamples.map((example) => example.text));
+  if (result.length !== state.semanticExamples.length) {
+    throw new Error("The companion returned an incomplete semantic index.");
+  }
+  state.semanticEmbeddings = result;
+}
+
+async function requestLocalEmbeddings(input) {
+  const response = await fetch(`${COMPANION_BASE_URL}/embed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Local embedding request failed.");
+  }
+  state.semanticEmbeddingModel = data.model;
+  return data.embeddings ?? [];
+}
+
+async function getSemanticRouteSignals(prompt) {
+  if (!state.autoModeEnabled || !state.semanticEmbeddings?.length) return null;
+
+  try {
+    const [queryEmbedding] = await requestLocalEmbeddings(prompt);
+    if (!queryEmbedding) return null;
+    const neighbors = state.semanticEmbeddings
+      .map((embedding, index) => ({
+        example: state.semanticExamples[index],
+        similarity: cosineSimilarity(queryEmbedding, embedding)
+      }))
+      .sort((left, right) => right.similarity - left.similarity)
+      .slice(0, 9);
+    const usable = neighbors.filter((neighbor) => neighbor.similarity > 0.2);
+    if (usable.length === 0) return null;
+
+    const totalWeight = usable.reduce((sum, neighbor) => sum + Math.max(0, neighbor.similarity) ** 3, 0);
+    const weighted = (predicate) => usable.reduce((sum, neighbor) => (
+      sum + (predicate(neighbor.example) ? Math.max(0, neighbor.similarity) ** 3 : 0)
+    ), 0) / totalWeight;
+    const labelVote = (field) => {
+      const scores = new Map();
+      for (const neighbor of usable) {
+        const label = neighbor.example[field];
+        const weight = Math.max(0, neighbor.similarity) ** 3;
+        scores.set(label, (scores.get(label) ?? 0) + weight);
+      }
+      return [...scores.entries()].sort((a, b) => b[1] - a[1])[0];
+    };
+    const [taskType, taskWeight] = labelVote("task_type");
+    const [difficulty, difficultyWeight] = labelVote("difficulty");
+
+    return {
+      source: "local_embedding_knn",
+      embeddingModel: state.semanticEmbeddingModel,
+      strongWinProbability: weighted((example) => example.route_class.startsWith("cloud_")),
+      taskType,
+      taskConfidence: taskWeight / totalWeight,
+      difficulty,
+      difficultyConfidence: difficultyWeight / totalWeight,
+      maxSimilarity: usable[0].similarity,
+      neighbors: usable.slice(0, 3).map((neighbor) => ({
+        text: neighbor.example.text,
+        similarity: Math.round(neighbor.similarity * 1000) / 1000,
+        routeClass: neighbor.example.route_class
+      }))
+    };
+  } catch (error) {
+    console.warn("Semantic routing signal unavailable.", error);
+    return null;
+  }
+}
+
+function cosineSimilarity(left, right) {
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+  const length = Math.min(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    dot += left[index] * right[index];
+    leftNorm += left[index] ** 2;
+    rightNorm += right[index] ** 2;
+  }
+  return leftNorm && rightNorm ? dot / Math.sqrt(leftNorm * rightNorm) : 0;
 }
 
 async function refreshCompanionStatus() {
@@ -295,28 +625,26 @@ function isWindows() {
 }
 
 function setOllamaStatus(status) {
-  const labels = {
-    checking: "Checking Ollama",
-    online: "Ollama Online",
-    offline: "Ollama Offline"
-  };
-
-  elements.ollamaStatus.textContent = labels[status];
-  elements.ollamaStatus.dataset.status = status;
+  if (!elements.routingStatusText) return;
+  if (status === "online") {
+    elements.routingStatusDot.classList.add("online");
+    elements.routingStatusText.textContent = "Local and cloud routing ready";
+  } else if (status === "offline") {
+    elements.routingStatusDot.classList.toggle("online", state.companionOnline);
+    elements.routingStatusText.textContent = "Cloud routing ready";
+  } else {
+    elements.routingStatusText.textContent = "Checking available models";
+  }
 }
 
 function setCompanionStatus(status) {
-  const labels = {
-    checking: "Checking Companion",
-    online: "Companion Online",
-    offline: "Companion Offline"
-  };
-
-  elements.companionStatus.textContent = labels[status];
-  elements.companionStatus.dataset.status = status;
+  if (status === "online") {
+    elements.routingStatusDot.classList.add("online");
+  }
 }
 
 function renderSystemProfile() {
+  if (!elements.systemProfilePanel) return;
   if (!state.systemProfile) {
     elements.systemProfilePanel.textContent = [
       "Local companion is not reachable.",
@@ -364,14 +692,117 @@ function getFilteredModels() {
   });
 }
 
+function renderConversationHistory() {
+  const sorted = [...state.conversations].sort((left, right) => right.updatedAt - left.updatedAt);
+  elements.chatHistory.innerHTML = sorted.map((conversation) => `
+    <button class="history-item ${conversation.id === state.activeConversationId ? "active" : ""}" type="button" data-chat-id="${escapeHtml(conversation.id)}">
+      <span class="history-item-label">${escapeHtml(conversation.title || "New chat")}</span>
+      <span class="delete-chat" data-delete-chat="${escapeHtml(conversation.id)}" role="button" aria-label="Delete chat">×</span>
+    </button>
+  `).join("");
+
+  elements.chatHistory.querySelectorAll("[data-chat-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      if (event.target.closest("[data-delete-chat]")) return;
+      switchConversation(button.dataset.chatId);
+    });
+  });
+
+  elements.chatHistory.querySelectorAll("[data-delete-chat]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteConversation(button.dataset.deleteChat);
+    });
+  });
+}
+
+function renderActiveConversation() {
+  const conversation = getActiveConversation();
+  elements.activeChatTitle.textContent = conversation?.title || "New chat";
+  elements.messages.innerHTML = "";
+
+  if (!conversation || conversation.messages.length === 0) {
+    elements.messages.innerHTML = `
+      <div class="empty-state" id="emptyState">
+        <div class="empty-mark">O</div>
+        <h2>How can I help?</h2>
+        <p>Ask a question, explore an idea, or work through a problem.</p>
+      </div>
+    `;
+    return;
+  }
+
+  conversation.messages.forEach((message) => appendMessage(message.role, message.content, false, message));
+  elements.messages.scrollTop = elements.messages.scrollHeight;
+}
+
 function render() {
-  renderRouteSelect();
-  renderModelTable();
+  renderConversationHistory();
+  renderActiveConversation();
+  renderModelMenu();
+  renderFeedbackExportState();
   renderSelectedModelSummary();
   renderChatControls();
 }
 
+function renderFeedbackExportState() {
+  const examples = buildTrainingExamples();
+  elements.feedbackCount.textContent = `${examples.length} ${examples.length === 1 ? "example" : "examples"}`;
+  elements.exportFeedbackButton.disabled = getRouteDecisions().length === 0;
+}
+
+function renderModelMenu() {
+  const availableModels = state.models.filter((model) => (
+    model.enabled && (!model.local || state.installedLocalModels.has(model.id))
+  ));
+  const cloudModels = availableModels.filter((model) => !model.local);
+  const localModels = availableModels.filter((model) => model.local);
+
+  const renderOption = (id, name, description) => `
+    <button class="model-menu-option ${state.selectedModelId === id ? "selected" : ""}" type="button" role="menuitemradio" aria-checked="${state.selectedModelId === id}" data-model-id="${escapeHtml(id)}">
+      <span class="model-menu-option-copy">
+        <strong>${escapeHtml(name)}</strong>
+        <small>${escapeHtml(description)}</small>
+      </span>
+      <span class="model-menu-check">${state.selectedModelId === id ? "✓" : ""}</span>
+    </button>
+  `;
+
+  const sections = [
+    renderOption(AUTO_ROUTE_ID, "Automatic routing", "Best model selected for each prompt")
+  ];
+
+  if (cloudModels.length > 0) {
+    sections.push('<div class="model-menu-label">Cloud models</div>');
+    sections.push(...cloudModels.map((model) => renderOption(
+      model.id,
+      model.display_name,
+      model.provider === "groq" ? "Groq" : "Google AI Studio"
+    )));
+  }
+
+  if (localModels.length > 0) {
+    sections.push('<div class="model-menu-label">Local models</div>');
+    sections.push(...localModels.map((model) => renderOption(model.id, model.display_name, "Runs on this device")));
+  }
+
+  elements.modelMenu.innerHTML = sections.join("");
+
+  if (isAutoRouteSelected()) {
+    elements.routingModeLabel.textContent = "Automatic routing";
+    elements.routingStatusText.textContent = state.ollamaOnline
+      ? "Local and cloud routing ready"
+      : "Best cloud model for each prompt";
+    return;
+  }
+
+  const model = getSelectedModel();
+  elements.routingModeLabel.textContent = model?.display_name ?? "Choose model";
+  elements.routingStatusText.textContent = model?.local ? "Local model selected" : "Cloud model selected";
+}
+
 function renderRouteSelect() {
+  if (!elements.routeSelect) return;
   const currentValue = state.selectedModelId;
 
   const modelOptions = state.models
@@ -383,6 +814,7 @@ function renderRouteSelect() {
 }
 
 function renderModelTable() {
+  if (!elements.modelTableBody) return;
   elements.modelTableBody.innerHTML = getFilteredModels()
     .map((model) => {
       const status = getModelStatus(model);
@@ -431,8 +863,7 @@ function getModelStatus(model) {
 
 function renderSelectedModelSummary() {
   if (isAutoRouteSelected()) {
-    const routerMode = state.routerModel ? "ML classifier" : "rule fallback";
-    elements.selectedModelSummary.textContent = `Auto Router uses a ${routerMode} with privacy, difficulty, task type, local model availability, and system profile signals.`;
+    elements.selectedModelSummary.textContent = "Automatic model routing";
     return;
   }
 
@@ -450,7 +881,10 @@ function renderSelectedModelSummary() {
 
 function renderChatControls() {
   elements.submitButton.disabled = state.responseInFlight;
-  elements.submitButton.textContent = state.responseInFlight ? "Sending" : "Send";
+  elements.promptInput.disabled = state.responseInFlight;
+  elements.submitButton.innerHTML = state.responseInFlight
+    ? '<span class="sending-indicator" aria-hidden="true">…</span>'
+    : '<span aria-hidden="true">↑</span>';
 }
 
 async function pullSelectedLocalModel() {
@@ -498,7 +932,10 @@ async function sendChatMessage() {
 
   if (!prompt || state.responseInFlight) return;
 
-  const routeDecision = resolveChatRoute(prompt);
+  const semanticSignals = isAutoRouteSelected()
+    ? await getSemanticRouteSignals(prompt)
+    : null;
+  const routeDecision = resolveChatRoute(prompt, semanticSignals);
 
   if (routeDecision.error) {
     appendMessage("system", routeDecision.error);
@@ -508,23 +945,42 @@ async function sendChatMessage() {
   const model = routeDecision.model;
 
   if (model.local && !state.installedLocalModels.has(model.id)) {
-    appendMessage("system", `Install ${model.id} before chatting with it.`);
-    return;
+    if (state.autoModeEnabled && state.companionOnline) {
+      elements.selectedModelSummary.textContent = `Installing ${model.display_name} locally…`;
+      try {
+        await ensureLocalModelInstalled(model.id);
+      } catch (error) {
+        appendMessage("system", `Auto mode could not install ${model.id}: ${error.message}`);
+        return;
+      }
+    } else {
+      appendMessage("system", `Install ${model.id} before chatting with it, or enable auto mode.`);
+      return;
+    }
   }
 
   // Display the user message in the chat UI and store it in message history
+  const userMessage = { id: createId("message"), role: "user", content: prompt };
   appendMessage("user", prompt);
-  if (routeDecision.auto) {
-    appendMessage("system", `Auto Router selected ${model.display_name}: ${routeDecision.reason}`);
+  state.messages.push(userMessage);
+  const conversation = getActiveConversation();
+  if (conversation.messages.length === 1) {
+    conversation.title = createConversationTitle(prompt);
   }
-  state.messages.push({ role: "user", content: prompt });
+  conversation.updatedAt = Date.now();
+  persistConversations();
+  renderConversationHistory();
+  elements.activeChatTitle.textContent = conversation.title;
+  elements.selectedModelSummary.textContent = `Routed to ${model.display_name}`;
   
   // Clear the input field for the next message
   elements.promptInput.value = "";
+  autoResizeComposer();
   
   // Create a placeholder for the assistant's response and prepare response variable
   const assistantMessage = appendMessage("assistant", "");
   let assistantResponse = "";
+  let usage = null;
   
   // Mark that a response is being processed and update UI controls
   state.responseInFlight = true;
@@ -532,24 +988,49 @@ async function sendChatMessage() {
 
   try {
     if (model.local) {
-      assistantResponse = await sendOllamaChatMessage(model, assistantMessage);
+      ({ content: assistantResponse, usage } = await sendOllamaChatMessage(model, assistantMessage));
     } else {
       // Cloud routing starts here: non-local models are sent through the app's
       // backend proxy instead of directly from the browser to the provider.
-      assistantResponse = await sendCloudChatMessage(model, assistantMessage);
+      ({ content: assistantResponse, usage } = await sendCloudChatMessage(model, assistantMessage));
     }
 
-    state.messages.push({ role: "assistant", content: assistantResponse });
+    state.messages.push({
+      id: createId("message"),
+      role: "assistant",
+      content: assistantResponse,
+      routeDecision: {
+        promptMessageId: userMessage.id,
+        prompt,
+        mode: routeDecision.auto ? "automatic" : "manual",
+        selectedModelId: model.id,
+        selectedModelName: model.display_name,
+        provider: model.provider,
+        local: Boolean(model.local),
+        reason: routeDecision.reason,
+        signals: routeDecision.signals ?? null,
+        timestamp: new Date().toISOString()
+      },
+      feedback: null
+    });
+    recordUsageEvent(model, usage, userMessage.id);
+    conversation.updatedAt = Date.now();
+    persistConversations();
+    render();
   } catch (error) {
     setMessageContent(assistantMessage, "system", `Chat failed: ${error.message}`);
-    state.messages.pop();
   } finally {
     state.responseInFlight = false;
     renderChatControls();
   }
 }
 
-function resolveChatRoute(prompt) {
+function createConversationTitle(prompt) {
+  const compact = prompt.replace(/\s+/g, " ").trim();
+  return compact.length > 42 ? `${compact.slice(0, 42).trim()}…` : compact;
+}
+
+function resolveChatRoute(prompt, semanticSignals = null) {
   if (!isAutoRouteSelected()) {
     const model = getSelectedModel();
 
@@ -564,27 +1045,36 @@ function resolveChatRoute(prompt) {
     };
   }
 
-  return selectAutoRoute(prompt);
+  return selectAutoRoute(prompt, semanticSignals);
 }
 
-function selectAutoRoute(prompt) {
-  const signals = analyzePrompt(prompt);
+function selectAutoRoute(prompt, semanticSignals = null) {
+  const signals = analyzePrompt(prompt, semanticSignals);
   const installedLocalModels = getCompatibleInstalledLocalModels();
   const cloudModels = state.models.filter((model) => model.enabled && !model.local);
+  const semanticRequestsStrong = (
+    signals.semantic?.maxSimilarity >= 0.45
+    && signals.semantic.strongWinProbability >= SEMANTIC_STRONG_THRESHOLD
+  );
 
-  if (signals.private && signals.difficulty !== "easy") {
+  if (signals.private && (signals.difficulty === "hard" || semanticRequestsStrong)) {
     return {
-      error: `Auto Router classified this as a ${signals.difficulty} private task. Local models are restricted to easy tasks, while privacy rules block automatic cloud use. Manually choose a route if you want to override either policy.`
+      error: "Auto Router classified this as a hard private task. No compatible local model meets the required quality tier, and privacy rules block automatic cloud use. Manually choose a route to override the policy."
     };
   }
 
-  if (signals.difficulty === "easy" && installedLocalModels.length > 0) {
+  if (!semanticRequestsStrong && ["easy", "medium"].includes(signals.difficulty) && installedLocalModels.length > 0) {
     const localModel = rankModels(installedLocalModels, signals)[0];
-    return {
-      auto: true,
-      model: localModel,
-      reason: `${describeRouterSignals(signals)} Easy tasks prefer an installed local model.`
-    };
+    if (localModel) {
+      return {
+        auto: true,
+        model: localModel,
+        signals,
+        reason: signals.difficulty === "medium"
+          ? `${describeRouterSignals(signals)} Medium tasks use the strongest hardware-compatible local model.`
+          : `${describeRouterSignals(signals)} Easy tasks prefer an installed local model.`
+      };
+    }
   }
 
   if (signals.private) {
@@ -599,20 +1089,23 @@ function selectAutoRoute(prompt) {
     return {
       auto: true,
       model: cloudModel,
-      reason: signals.difficulty === "easy"
-        ? `${describeRouterSignals(signals)} No compatible local model was installed, so it used the best available cloud route.`
-        : `${describeRouterSignals(signals)} ${capitalize(signals.difficulty)} tasks are routed to cloud by policy.`
+      signals,
+      reason: semanticRequestsStrong
+        ? `${describeRouterSignals(signals)} Semantic preference evidence exceeded the strong-model threshold.`
+        : signals.difficulty === "easy"
+          ? `${describeRouterSignals(signals)} No compatible local model was installed, so it used the best available cloud route.`
+          : `${describeRouterSignals(signals)} ${capitalize(signals.difficulty)} tasks are routed to cloud by policy.`
     };
   }
 
   return {
-    error: signals.difficulty === "easy"
+    error: ["easy", "medium"].includes(signals.difficulty)
       ? "Auto Router could not find an available route. Install a local model or configure a cloud provider."
       : `Auto Router requires a cloud model for this ${signals.difficulty} task, but no cloud route is available.`
   };
 }
 
-function analyzePrompt(prompt) {
+function analyzePrompt(prompt, semanticSignals = null) {
   const rules = analyzePromptRules(prompt);
   const prediction = predictPromptWithRouterModel(prompt);
 
@@ -621,10 +1114,17 @@ function analyzePrompt(prompt) {
   }
 
   const taskPrediction = prediction.task_type;
-  const taskType = rules.factualQuestion && !rules.coding
+  let taskType = rules.factualQuestion && !rules.coding
     ? "simple_qa"
     : selectTaskType(rules, taskPrediction);
-  const complexity = assessPromptComplexity(prompt, taskType, rules, prediction.difficulty);
+  if (
+    rules.taskType === "unknown"
+    && semanticSignals?.maxSimilarity >= 0.68
+    && semanticSignals.taskConfidence >= 0.52
+  ) {
+    taskType = semanticSignals.taskType;
+  }
+  const complexity = assessPromptComplexity(prompt, taskType, rules, prediction.difficulty, semanticSignals);
   const difficulty = complexity.label;
   const privacy = strongerPrivacy(rules.privacy, prediction.privacy.label);
 
@@ -638,6 +1138,7 @@ function analyzePrompt(prompt) {
     difficulty,
     privacy,
     complexity,
+    semantic: semanticSignals,
     requiresLongContext: complexity.dimensions.longContext > 0,
     confidence: routingConfidence(prediction, complexity),
     uncertain: isPredictionUncertain(prediction),
@@ -866,7 +1367,7 @@ function selectTaskType(rules, prediction) {
   return "simple_qa";
 }
 
-function assessPromptComplexity(prompt, taskType, rules, prediction) {
+function assessPromptComplexity(prompt, taskType, rules, prediction, semanticSignals = null) {
   const text = prompt.toLowerCase();
   const wordCount = text.split(/\s+/).filter(Boolean).length;
 
@@ -900,7 +1401,8 @@ function assessPromptComplexity(prompt, taskType, rules, prediction) {
     || /\b\d+\s*(?:page|pages|files|documents)\b/.test(text);
   const task = ["coding", "math", "planning", "data_analysis", "reasoning"].includes(taskType) ? 1 : 0;
   const ml = difficultyEvidence(prediction);
-  let score = length + reasoning + scope + constraints + task + ml;
+  const semantic = semanticDifficultyEvidence(semanticSignals);
+  let score = length + reasoning + scope + constraints + task + ml + semantic;
 
   if (explicitLongContext) score += 6;
   if (/\badvanced\b/.test(text) && ["math", "reasoning", "coding"].includes(taskType)) score += 2;
@@ -911,8 +1413,18 @@ function assessPromptComplexity(prompt, taskType, rules, prediction) {
   return {
     label,
     score: Math.max(0, score),
-    dimensions: { length, reasoning, scope, constraints, task, ml, longContext: explicitLongContext ? 4 : 0 }
+    dimensions: { length, reasoning, scope, constraints, task, ml, semantic, longContext: explicitLongContext ? 4 : 0 }
   };
+}
+
+function semanticDifficultyEvidence(signals) {
+  if (!signals || signals.maxSimilarity < 0.45) return 0;
+  let score = 0;
+  if (signals.strongWinProbability >= 0.8) score += 3;
+  else if (signals.strongWinProbability >= 0.62) score += 2;
+  else if (signals.strongWinProbability >= 0.5) score += 1;
+  if (signals.difficulty === "hard" && signals.difficultyConfidence >= 0.6) score += 1;
+  return score;
 }
 
 function difficultyEvidence(prediction) {
@@ -1081,13 +1593,28 @@ function getInstalledLocalModels() {
 }
 
 function getCompatibleInstalledLocalModels() {
-  const localModels = getInstalledLocalModels();
+  const localModels = state.autoModeEnabled
+    ? state.models.filter((model) => model.local && model.enabled)
+    : getInstalledLocalModels();
 
   if (!state.systemProfile) {
     return localModels;
   }
 
   return localModels.filter(isModelCompatibleWithSystemProfile);
+}
+
+async function ensureLocalModelInstalled(modelId) {
+  const response = await fetch(`${COMPANION_BASE_URL}/models/pull`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: modelId })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Model installation failed with ${response.status}.`);
+  }
+  await refreshOllamaStatus();
 }
 
 function isModelCompatibleWithSystemProfile(model) {
@@ -1148,7 +1675,7 @@ async function sendOllamaChatMessage(model, assistantMessage) {
     body: JSON.stringify({
       model: model.id,
       stream: true,
-      messages: state.messages
+      messages: state.messages.map(({ role, content }) => ({ role, content }))
     })
   });
 
@@ -1157,13 +1684,21 @@ async function sendOllamaChatMessage(model, assistantMessage) {
   }
 
   let content = "";
+  let usage = null;
 
   await readOllamaStream(response.body, (event) => {
     content += event.message?.content ?? "";
-    setMessageContent(assistantMessage, "assistant", content);
+    if (event.done) {
+      usage = {
+        input_tokens: event.prompt_eval_count ?? 0,
+        output_tokens: event.eval_count ?? 0,
+        total_tokens: (event.prompt_eval_count ?? 0) + (event.eval_count ?? 0)
+      };
+    }
+    setMessageContent(assistantMessage, "assistant", stripThinkContent(content));
   });
 
-  return content;
+  return { content: stripThinkContent(content), usage };
 }
 
 async function sendCloudChatMessage(model, assistantMessage) {
@@ -1184,14 +1719,40 @@ async function sendCloudChatMessage(model, assistantMessage) {
     throw new Error(data.error || `Cloud chat failed with ${response.status}`);
   }
 
-  const content = data.message?.content ?? "";
+  const content = stripThinkContent(data.message?.content ?? "");
   setMessageContent(assistantMessage, "assistant", content);
 
   if (!content) {
     throw new Error("Cloud provider returned an empty response.");
   }
 
-  return content;
+  return { content, usage: data.usage ?? null };
+}
+
+function recordUsageEvent(model, usage, promptMessageId) {
+  if (!usage) return;
+  const pricing = model.pricing_per_million_tokens;
+  const inputCost = pricing ? (usage.input_tokens ?? 0) * pricing.input_usd / 1_000_000 : 0;
+  const outputCost = pricing ? (usage.output_tokens ?? 0) * pricing.output_usd / 1_000_000 : 0;
+  const event = {
+    id: createId("usage"),
+    promptMessageId,
+    modelId: model.id,
+    modelName: model.display_name,
+    provider: model.provider,
+    local: Boolean(model.local),
+    inputTokens: usage.input_tokens ?? 0,
+    outputTokens: usage.output_tokens ?? 0,
+    totalTokens: usage.total_tokens ?? ((usage.input_tokens ?? 0) + (usage.output_tokens ?? 0)),
+    estimatedCostUsd: inputCost + outputCost,
+    timestamp: new Date().toISOString()
+  };
+  state.usageEvents.push(event);
+  try {
+    localStorage.setItem("optimllm.usage.v1", JSON.stringify(state.usageEvents));
+  } catch (error) {
+    console.warn("Usage telemetry could not be saved.", error);
+  }
 }
 
 async function readOllamaStream(stream, onEvent) {
@@ -1216,32 +1777,207 @@ async function readOllamaStream(stream, onEvent) {
   }
 }
 
-function appendMessage(role, text) {
+function appendMessage(role, text, shouldScroll = true, messageData = null) {
+  elements.messages.querySelector(".empty-state")?.remove();
   const message = document.createElement("div");
   message.className = `message ${role}`;
-  setMessageContent(message, role, text);
+  setMessageContent(message, role, text, false);
+
+  if (role === "assistant" && messageData?.routeDecision) {
+    message.appendChild(createRouteFeedbackPanel(messageData));
+  }
+
   elements.messages.appendChild(message);
-  elements.messages.scrollTop = elements.messages.scrollHeight;
+  if (shouldScroll) {
+    elements.messages.scrollTop = elements.messages.scrollHeight;
+  }
   return message;
 }
 
-function setMessageContent(message, role, text) {
-  message.dataset.rawContent = text;
+function createRouteFeedbackPanel(messageData) {
+  const panel = document.createElement("div");
+  panel.className = "route-feedback";
+  const feedback = messageData.feedback;
+  const decision = messageData.routeDecision;
+  const modelOptions = state.models
+    .filter((model) => model.enabled)
+    .map((model) => `
+      <option value="${escapeHtml(model.id)}" ${feedback?.expectedModelId === model.id ? "selected" : ""}>
+        ${escapeHtml(model.display_name)}
+      </option>
+    `)
+    .join("");
 
-  if (role === "assistant") {
-    message.innerHTML = renderMarkdown(text);
+  panel.innerHTML = `
+    <div class="route-feedback-summary">
+      <span class="route-chip">${escapeHtml(decision.selectedModelName || decision.selectedModelId)}</span>
+      <span class="route-feedback-question">Was this route right?</span>
+      <span class="route-feedback-actions">
+        <button class="feedback-icon ${feedback?.rating === "positive" ? "selected" : ""}" type="button" data-route-feedback="positive" data-message-id="${escapeHtml(messageData.id)}" aria-label="Good route" title="Good route">👍</button>
+        <button class="feedback-icon ${feedback?.rating === "negative" ? "selected" : ""}" type="button" data-route-feedback="negative" data-message-id="${escapeHtml(messageData.id)}" aria-label="Bad route" title="Bad route">👎</button>
+      </span>
+    </div>
+    ${feedback?.rating === "negative" ? `
+      <label class="route-correction">
+        <span>Which model should have handled it?</span>
+        <select data-route-correction data-message-id="${escapeHtml(messageData.id)}">
+          <option value="">Choose the expected model</option>
+          ${modelOptions}
+        </select>
+      </label>
+    ` : ""}
+    ${feedback?.rating === "positive" || feedback?.expectedModelId ? '<p class="feedback-saved">Feedback saved for router training.</p>' : ""}
+  `;
+
+  return panel;
+}
+
+function findMessageById(messageId) {
+  for (const conversation of state.conversations) {
+    const message = conversation.messages.find((item) => item.id === messageId);
+    if (message) return { conversation, message };
+  }
+  return null;
+}
+
+function setRouteFeedback(messageId, rating) {
+  const result = findMessageById(messageId);
+  if (!result?.message.routeDecision) return;
+
+  if (result.message.feedback?.rating === rating) {
+    result.message.feedback = null;
   } else {
-    message.textContent = text;
+    result.message.feedback = {
+      rating,
+      expectedModelId: rating === "positive"
+        ? result.message.routeDecision.selectedModelId
+        : null,
+      timestamp: new Date().toISOString()
+    };
   }
 
-  elements.messages.scrollTop = elements.messages.scrollHeight;
+  result.conversation.updatedAt = Date.now();
+  persistConversations();
+  render();
+}
+
+function setExpectedRoute(messageId, modelId) {
+  const result = findMessageById(messageId);
+  if (!result?.message.feedback || result.message.feedback.rating !== "negative") return;
+
+  result.message.feedback.expectedModelId = modelId || null;
+  result.message.feedback.timestamp = new Date().toISOString();
+  result.conversation.updatedAt = Date.now();
+  persistConversations();
+  render();
+}
+
+function getRouteDecisions() {
+  return state.conversations.flatMap((conversation) => (
+    conversation.messages
+      .filter((message) => message.role === "assistant" && message.routeDecision)
+      .map((message) => ({
+        conversationId: conversation.id,
+        conversationTitle: conversation.title,
+        messageId: message.id,
+        decision: message.routeDecision,
+        feedback: message.feedback ?? null
+      }))
+  ));
+}
+
+function buildTrainingExamples() {
+  return getRouteDecisions()
+    .filter((entry) => (
+      entry.feedback?.rating === "positive"
+      || (entry.feedback?.rating === "negative" && entry.feedback.expectedModelId)
+    ))
+    .map((entry) => {
+      const expectedModelId = entry.feedback.rating === "positive"
+        ? entry.decision.selectedModelId
+        : entry.feedback.expectedModelId;
+      const expectedModel = state.models.find((model) => model.id === expectedModelId);
+
+      return {
+        prompt: entry.decision.prompt,
+        selected_model: entry.decision.selectedModelId,
+        expected_model: expectedModelId,
+        expected_model_name: expectedModel?.display_name ?? expectedModelId,
+        route_mode: entry.decision.mode,
+        route_reason: entry.decision.reason,
+        feedback: entry.feedback.rating,
+        corrected: expectedModelId !== entry.decision.selectedModelId,
+        created_at: entry.feedback.timestamp
+      };
+    });
+}
+
+function exportRouterTrainingData() {
+  const payload = {
+    schema_version: 1,
+    exported_at: new Date().toISOString(),
+    training_examples: buildTrainingExamples(),
+    route_decisions: getRouteDecisions()
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `optimllm-router-feedback-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function setMessageContent(message, role, text, shouldScroll = true) {
+  const displayText = role === "assistant" ? stripThinkContent(text) : text;
+  message.dataset.rawContent = displayText;
+
+  if (role === "assistant") {
+    message.innerHTML = renderMarkdown(displayText);
+  } else {
+    message.textContent = displayText;
+  }
+
+  if (shouldScroll) {
+    elements.messages.scrollTop = elements.messages.scrollHeight;
+  }
+}
+
+function stripThinkContent(value) {
+  if (typeof value !== "string" || !value) return value || "";
+
+  let cleaned = value;
+  cleaned = cleaned.replace(/<think\b[^>]*>[\s\S]*?<\/think\s*>/gi, "");
+  cleaned = cleaned.replace(/<think\b[^>]*>[\s\S]*$/gi, "");
+  cleaned = cleaned.replace(/<\/think\s*>/gi, "");
+
+  const lastTagStart = cleaned.lastIndexOf("<");
+  if (lastTagStart !== -1) {
+    const suffix = cleaned.slice(lastTagStart).toLowerCase();
+    if ("<think>".startsWith(suffix) || "</think>".startsWith(suffix)) {
+      cleaned = cleaned.slice(0, lastTagStart);
+    }
+  }
+
+  return cleaned === value ? cleaned : cleaned.trimStart();
 }
 
 function renderMarkdown(text) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const codeBlocks = [];
+  const normalized = text.replace(/\r\n/g, "\n").replace(
+    /```([A-Za-z0-9_+#.-]*)[ \t]*\n?([\s\S]*?)```/g,
+    (_, language, code) => {
+      const index = codeBlocks.push({ language: language || "code", code: code.replace(/^\n|\n$/g, "") }) - 1;
+      return `\n\u0002CODEBLOCK${index}\u0002\n`;
+    }
+  );
+  const lines = normalized.split("\n");
   const html = [];
   let paragraph = [];
   let listItems = [];
+  let listType = null;
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
@@ -1251,12 +1987,23 @@ function renderMarkdown(text) {
 
   const flushList = () => {
     if (listItems.length === 0) return;
-    html.push(`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+    const tag = listType === "ol" ? "ol" : "ul";
+    html.push(`<${tag}>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</${tag}>`);
     listItems = [];
+    listType = null;
   };
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    const codeBlock = trimmed.match(/^\u0002CODEBLOCK(\d+)\u0002$/);
+    if (codeBlock) {
+      flushParagraph();
+      flushList();
+      const block = codeBlocks[Number(codeBlock[1])];
+      html.push(renderCodeBlock(block.code, block.language));
+      continue;
+    }
 
     if (!trimmed) {
       flushParagraph();
@@ -1275,7 +2022,7 @@ function renderMarkdown(text) {
     if (heading) {
       flushParagraph();
       flushList();
-      const level = heading[1].length + 2;
+      const level = Math.min(heading[1].length + 1, 4);
       html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
       continue;
     }
@@ -1283,7 +2030,26 @@ function renderMarkdown(text) {
     const bullet = trimmed.match(/^[-*]\s+(.+)$/);
     if (bullet) {
       flushParagraph();
+      if (listType && listType !== "ul") flushList();
+      listType = "ul";
       listItems.push(bullet[1]);
+      continue;
+    }
+
+    const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    if (numbered) {
+      flushParagraph();
+      if (listType && listType !== "ol") flushList();
+      listType = "ol";
+      listItems.push(numbered[1]);
+      continue;
+    }
+
+    const quote = trimmed.match(/^>\s?(.+)$/);
+    if (quote) {
+      flushParagraph();
+      flushList();
+      html.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
       continue;
     }
 
@@ -1297,6 +2063,18 @@ function renderMarkdown(text) {
   return html.join("");
 }
 
+function renderCodeBlock(code, language) {
+  return `
+    <div class="code-block">
+      <div class="code-header">
+        <span>${escapeHtml(language)}</span>
+        <button class="copy-code" type="button" data-copy-code>Copy</button>
+      </div>
+      <pre><code>${escapeHtml(code)}</code></pre>
+    </div>
+  `;
+}
+
 function renderInlineMarkdown(text) {
   const codeSpans = [];
   const escaped = escapeHtml(text).replace(/`([^`]+)`/g, (_, code) => {
@@ -1307,11 +2085,14 @@ function renderInlineMarkdown(text) {
   return escaped
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
     .replace(/\u0000(\d+)\u0000/g, (_, index) => codeSpans[Number(index)]);
 }
 
 function writePullLog(text) {
-  elements.pullLog.textContent = text;
+  if (elements.pullLog) {
+    elements.pullLog.textContent = text;
+  }
 }
 
 function escapeHtml(value) {

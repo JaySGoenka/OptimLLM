@@ -1,0 +1,336 @@
+{
+  "schema": "source_a_v4_three_tier_map",
+  "created": "June 23, 2026 23:10:12 CDT",
+  "tiers": {
+    "strong": [
+      "claude-2.0",
+      "claude-2.1",
+      "gemini-pro",
+      "gemini-pro-dev-api",
+      "gpt-4-0125-preview",
+      "gpt-4-0314",
+      "gpt-4-0613",
+      "gpt-4-1106-preview",
+      "mistral-medium",
+      "palm-2"
+    ],
+    "medium": [
+      "deepseek-llm-67b-chat",
+      "llama-2-70b-chat",
+      "llama2-70b-steerlm-chat",
+      "mixtral-8x7b-instruct-v0.1",
+      "qwen1.5-72b-chat",
+      "tulu-2-dpo-70b",
+      "wizardlm-70b",
+      "yi-34b-chat"
+    ],
+    "weak": [
+      "RWKV-4-Raven-14B",
+      "alpaca-13b",
+      "chatglm-6b",
+      "chatglm2-6b",
+      "chatglm3-6b",
+      "claude-1",
+      "claude-instant-1",
+      "dolly-v2-12b",
+      "dolphin-2.2.1-mistral-7b",
+      "fastchat-t5-3b",
+      "gpt-3.5-turbo-0125",
+      "gpt-3.5-turbo-0314",
+      "gpt-3.5-turbo-0613",
+      "gpt-3.5-turbo-1106",
+      "gpt4all-13b-snoozy",
+      "guanaco-33b",
+      "koala-13b",
+      "llama-13b",
+      "llama-2-13b-chat",
+      "llama-2-7b-chat",
+      "mistral-7b-instruct",
+      "mistral-7b-instruct-v0.2",
+      "mpt-7b-chat",
+      "nous-hermes-2-mixtral-8x7b-dpo",
+      "oasst-pythia-12b",
+      "openchat-3.5",
+      "openchat-3.5-0106",
+      "openhermes-2.5-mistral-7b",
+      "pplx-7b-online",
+      "qwen-14b-chat",
+      "qwen1.5-4b-chat",
+      "qwen1.5-7b-chat",
+      "solar-10.7b-instruct-v1.0",
+      "stablelm-tuned-alpha-7b",
+      "starling-lm-7b-alpha",
+      "vicuna-13b",
+      "vicuna-33b",
+      "vicuna-7b",
+      "wizardlm-13b",
+      "zephyr-7b-alpha",
+      "zephyr-7b-beta"
+    ],
+    "skip": [
+      "codellama-34b-instruct",
+      "falcon-180b-chat",
+      "mpt-30b-chat",
+      "pplx-70b-online",
+      "stripedhyena-nous-7b"
+    ]
+  },
+  "models": {
+    "RWKV-4-Raven-14B": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "alpaca-13b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "chatglm-6b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "chatglm2-6b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "chatglm3-6b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "claude-1": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "claude-2.0": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "claude-2.1": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "claude-instant-1": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "codellama-34b-instruct": {
+      "tier": "skip",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "deepseek-llm-67b-chat": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "dolly-v2-12b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "dolphin-2.2.1-mistral-7b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "falcon-180b-chat": {
+      "tier": "skip",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "fastchat-t5-3b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gemini-pro": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gemini-pro-dev-api": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-3.5-turbo-0125": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-3.5-turbo-0314": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-3.5-turbo-0613": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-3.5-turbo-1106": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-4-0125-preview": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-4-0314": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-4-0613": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt-4-1106-preview": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "gpt4all-13b-snoozy": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "guanaco-33b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "koala-13b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "llama-13b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "llama-2-13b-chat": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "llama-2-70b-chat": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "llama-2-7b-chat": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "llama2-70b-steerlm-chat": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "mistral-7b-instruct": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "mistral-7b-instruct-v0.2": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "mistral-medium": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "mixtral-8x7b-instruct-v0.1": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "mpt-30b-chat": {
+      "tier": "skip",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "mpt-7b-chat": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "nous-hermes-2-mixtral-8x7b-dpo": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "oasst-pythia-12b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "openchat-3.5": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "openchat-3.5-0106": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "openhermes-2.5-mistral-7b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "palm-2": {
+      "tier": "strong",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "pplx-70b-online": {
+      "tier": "skip",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "pplx-7b-online": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "qwen-14b-chat": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "qwen1.5-4b-chat": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "qwen1.5-72b-chat": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "qwen1.5-7b-chat": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "solar-10.7b-instruct-v1.0": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "stablelm-tuned-alpha-7b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "starling-lm-7b-alpha": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "stripedhyena-nous-7b": {
+      "tier": "skip",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "tulu-2-dpo-70b": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "vicuna-13b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "vicuna-33b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "vicuna-7b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "wizardlm-13b": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "wizardlm-70b": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "yi-34b-chat": {
+      "tier": "medium",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "zephyr-7b-alpha": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    },
+    "zephyr-7b-beta": {
+      "tier": "weak",
+      "reason": "Source A v4 explicit three-tier assignment"
+    }
+  }
+}

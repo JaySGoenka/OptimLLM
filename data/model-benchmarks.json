@@ -1,0 +1,324 @@
+{
+  "schema_version": 2,
+  "date_retrieved": "2026-06-21",
+  "purpose": "MVP routing capability matrix using the best published benchmark evidence available for each checkpoint. Benchmark families may differ by model.",
+  "normalization": {
+    "percentage": "normalized = raw_score / 100",
+    "ten_point_scale": "normalized = raw_score / 10",
+    "ordinal_tier": {
+      "A+": 0.925,
+      "A": 0.825,
+      "B": 0.775,
+      "C": 0.675,
+      "D": 0.5
+    },
+    "ordinal_tier_note": "Tier representatives are routing proxies, not measured benchmark percentages. A-Eval defines A+ >85, A=80-85, B=75-80, C=60-75, D<60.",
+    "task_score_formula": "Each task score is the arithmetic mean of the normalized evidence entries listed in task_score_evidence, unless the evidence entry explicitly says single benchmark or ordinal proxy."
+  },
+  "evidence_levels": {
+    "direct": "Benchmark directly measures the routed task.",
+    "adjacent": "Benchmark measures a closely related capability and is used as an explicit proxy.",
+    "family_proxy": "Score comes from a closely related upstream or parent checkpoint because no direct score was found.",
+    "ordinal_proxy": "Published capability tier converted to a numeric routing value using normalization.ordinal_tier."
+  },
+  "important_limitations": [
+    "Scores from different benchmark families are not perfectly comparable. They are intended for MVP ranking, not scientific model evaluation.",
+    "Ollama quantization-specific accuracy changes are generally unpublished; upstream BF16 or official checkpoint scores are used.",
+    "Multilingual knowledge or reasoning benchmarks are used as translation proxies where direct machine-translation benchmarks are unavailable.",
+    "Writing, instruction-following, and chat preference benchmarks are used as summarization or creative-writing proxies where direct task benchmarks are unavailable.",
+    "The configured model ID gemini-3.5-flash could not be matched to an official Google model. Gemini 3 Flash is used as a provisional benchmark proxy."
+  ],
+  "models": [
+    {
+      "model_id": "llama3.2:1b",
+      "benchmark_checkpoint": "meta-llama/Llama-3.2-1B-Instruct",
+      "tier": "local",
+      "enabled": true,
+      "benchmarks": {
+        "mmlu": {"raw_score": 49.3, "max_possible": 100, "normalized": 0.493, "metric": "5-shot macro average accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "open_rewrite": {"raw_score": 41.6, "max_possible": 100, "normalized": 0.416, "metric": "ROUGE-L", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "tldr9_plus": {"raw_score": 16.8, "max_possible": 100, "normalized": 0.168, "metric": "ROUGE-L", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "ifeval": {"raw_score": 59.5, "max_possible": 100, "normalized": 0.595, "metric": "average loose/strict prompt and instruction accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "gsm8k": {"raw_score": 44.4, "max_possible": 100, "normalized": 0.444, "metric": "8-shot CoT exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "math_hendrycks": {"raw_score": 30.6, "max_possible": 100, "normalized": 0.306, "metric": "0-shot CoT final exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "arc_challenge": {"raw_score": 59.4, "max_possible": 100, "normalized": 0.594, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "gpqa": {"raw_score": 27.2, "max_possible": 100, "normalized": 0.272, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "hellaswag": {"raw_score": 41.2, "max_possible": 100, "normalized": 0.412, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "bfcl_v2": {"raw_score": 25.7, "max_possible": 100, "normalized": 0.257, "metric": "tool-use accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "mgsm": {"raw_score": 24.5, "max_possible": 100, "normalized": 0.245, "metric": "multilingual exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"}
+      },
+      "task_scores": {"coding": 0.257, "math": 0.375, "reasoning": 0.426, "creative": 0.416, "summarization": 0.168, "simple_qa": 0.493, "planning": 0.426, "data_analysis": 0.414, "translation": 0.245},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["bfcl_v2"], "evidence_level": "adjacent", "confidence": "low", "note": "Tool/function execution is used because no code-generation score was found for the instruction checkpoint."},
+        "math": {"benchmarks": ["gsm8k", "math_hendrycks"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["arc_challenge", "gpqa", "hellaswag"], "evidence_level": "direct", "confidence": "high"},
+        "creative": {"benchmarks": ["open_rewrite"], "evidence_level": "adjacent", "confidence": "medium"},
+        "summarization": {"benchmarks": ["tldr9_plus"], "evidence_level": "direct", "confidence": "high"},
+        "simple_qa": {"benchmarks": ["mmlu"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["bfcl_v2", "ifeval"], "evidence_level": "adjacent", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["mmlu", "gsm8k", "math_hendrycks"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["mgsm"], "evidence_level": "adjacent", "confidence": "low", "note": "Multilingual reasoning, not direct translation quality."}
+      }
+    },
+    {
+      "model_id": "llama3.2:3b",
+      "benchmark_checkpoint": "meta-llama/Llama-3.2-3B-Instruct",
+      "tier": "local",
+      "enabled": true,
+      "benchmarks": {
+        "mmlu": {"raw_score": 63.4, "max_possible": 100, "normalized": 0.634, "metric": "5-shot macro average accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "open_rewrite": {"raw_score": 40.1, "max_possible": 100, "normalized": 0.401, "metric": "ROUGE-L", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "tldr9_plus": {"raw_score": 19.0, "max_possible": 100, "normalized": 0.19, "metric": "ROUGE-L", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "ifeval": {"raw_score": 77.4, "max_possible": 100, "normalized": 0.774, "metric": "average loose/strict prompt and instruction accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "gsm8k": {"raw_score": 77.7, "max_possible": 100, "normalized": 0.777, "metric": "8-shot CoT exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "math_hendrycks": {"raw_score": 48.0, "max_possible": 100, "normalized": 0.48, "metric": "0-shot CoT final exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "arc_challenge": {"raw_score": 78.6, "max_possible": 100, "normalized": 0.786, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "gpqa": {"raw_score": 32.8, "max_possible": 100, "normalized": 0.328, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "hellaswag": {"raw_score": 69.8, "max_possible": 100, "normalized": 0.698, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "bfcl_v2": {"raw_score": 67.0, "max_possible": 100, "normalized": 0.67, "metric": "tool-use accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"},
+        "mgsm": {"raw_score": 58.2, "max_possible": 100, "normalized": 0.582, "metric": "multilingual exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct#benchmarks---english-text"}
+      },
+      "task_scores": {"coding": 0.67, "math": 0.629, "reasoning": 0.604, "creative": 0.401, "summarization": 0.19, "simple_qa": 0.634, "planning": 0.722, "data_analysis": 0.631, "translation": 0.582},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["bfcl_v2"], "evidence_level": "adjacent", "confidence": "low"},
+        "math": {"benchmarks": ["gsm8k", "math_hendrycks"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["arc_challenge", "gpqa", "hellaswag"], "evidence_level": "direct", "confidence": "high"},
+        "creative": {"benchmarks": ["open_rewrite"], "evidence_level": "adjacent", "confidence": "medium"},
+        "summarization": {"benchmarks": ["tldr9_plus"], "evidence_level": "direct", "confidence": "high"},
+        "simple_qa": {"benchmarks": ["mmlu"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["bfcl_v2", "ifeval"], "evidence_level": "adjacent", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["mmlu", "gsm8k", "math_hendrycks"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["mgsm"], "evidence_level": "adjacent", "confidence": "low"}
+      }
+    },
+    {
+      "model_id": "qwen2.5:3b",
+      "benchmark_checkpoint": "Qwen/Qwen2.5-3B-Instruct",
+      "tier": "local",
+      "enabled": true,
+      "benchmarks": {
+        "humaneval": {"raw_score": 74.4, "max_possible": 100, "normalized": 0.744, "metric": "pass@1", "source": "https://arxiv.org/pdf/2412.15115", "source_detail": "Table 9"},
+        "gsm8k": {"raw_score": 86.7, "max_possible": 100, "normalized": 0.867, "metric": "accuracy", "source": "https://arxiv.org/pdf/2412.15115", "source_detail": "Table 9"},
+        "math_hendrycks": {"raw_score": 65.9, "max_possible": 100, "normalized": 0.659, "metric": "accuracy", "source": "https://arxiv.org/pdf/2412.15115", "source_detail": "Table 9"},
+        "mmlu_redux": {"raw_score": 64.4, "max_possible": 100, "normalized": 0.644, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Qwen3 report Table 20 comparison baseline"},
+        "gpqa_diamond": {"raw_score": 30.3, "max_possible": 100, "normalized": 0.303, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "livebench": {"raw_score": 23.8, "max_possible": 100, "normalized": 0.238, "metric": "2024-11-25 score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "ifeval": {"raw_score": 58.2, "max_possible": 100, "normalized": 0.582, "metric": "strict prompt accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "creative_writing_v3": {"raw_score": 42.8, "max_possible": 100, "normalized": 0.428, "metric": "score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "writingbench": {"raw_score": 5.55, "max_possible": 10, "normalized": 0.555, "metric": "judge score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "zebra_logic": {"raw_score": 4.8, "max_possible": 100, "normalized": 0.048, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "auto_logi": {"raw_score": 29.9, "max_possible": 100, "normalized": 0.299, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "bfcl_v3": {"raw_score": 50.4, "max_possible": 100, "normalized": 0.504, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "mmmlu_14_languages": {"raw_score": 51.8, "max_possible": 100, "normalized": 0.518, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"},
+        "mlogiqa": {"raw_score": 39.5, "max_possible": 100, "normalized": 0.395, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 20"}
+      },
+      "task_scores": {"coding": 0.744, "math": 0.763, "reasoning": 0.261, "creative": 0.428, "summarization": 0.555, "simple_qa": 0.644, "planning": 0.462, "data_analysis": 0.602, "translation": 0.518},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["humaneval"], "evidence_level": "direct", "confidence": "high"},
+        "math": {"benchmarks": ["gsm8k", "math_hendrycks"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["gpqa_diamond", "zebra_logic", "auto_logi", "mlogiqa"], "evidence_level": "direct", "confidence": "high"},
+        "creative": {"benchmarks": ["creative_writing_v3"], "evidence_level": "direct", "confidence": "high"},
+        "summarization": {"benchmarks": ["writingbench"], "evidence_level": "adjacent", "confidence": "medium"},
+        "simple_qa": {"benchmarks": ["mmlu_redux"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["bfcl_v3", "ifeval", "auto_logi"], "evidence_level": "adjacent", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["mmlu_redux", "gsm8k", "math_hendrycks", "livebench"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["mmmlu_14_languages"], "evidence_level": "adjacent", "confidence": "low"}
+      }
+    },
+    {
+      "model_id": "qwen3:4b",
+      "benchmark_checkpoint": "Qwen/Qwen3-4B thinking mode",
+      "tier": "local",
+      "enabled": true,
+      "benchmarks": {
+        "mmlu_redux": {"raw_score": 83.7, "max_possible": 100, "normalized": 0.837, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "gpqa_diamond": {"raw_score": 55.9, "max_possible": 100, "normalized": 0.559, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "livebench": {"raw_score": 63.6, "max_possible": 100, "normalized": 0.636, "metric": "2024-11-25 score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "ifeval": {"raw_score": 81.9, "max_possible": 100, "normalized": 0.819, "metric": "strict prompt accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "arena_hard": {"raw_score": 76.6, "max_possible": 100, "normalized": 0.766, "metric": "win-rate score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "creative_writing_v3": {"raw_score": 61.1, "max_possible": 100, "normalized": 0.611, "metric": "score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "writingbench": {"raw_score": 7.35, "max_possible": 10, "normalized": 0.735, "metric": "judge score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "math_500": {"raw_score": 97.0, "max_possible": 100, "normalized": 0.97, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "aime_2024": {"raw_score": 73.8, "max_possible": 100, "normalized": 0.738, "metric": "pass@1", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "aime_2025": {"raw_score": 65.6, "max_possible": 100, "normalized": 0.656, "metric": "pass@1", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "zebra_logic": {"raw_score": 81.0, "max_possible": 100, "normalized": 0.81, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "auto_logi": {"raw_score": 87.9, "max_possible": 100, "normalized": 0.879, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "bfcl_v3": {"raw_score": 65.9, "max_possible": 100, "normalized": 0.659, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "livecodebench_v5": {"raw_score": 54.2, "max_possible": 100, "normalized": 0.542, "metric": "pass@1", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "mmmlu_14_languages": {"raw_score": 69.8, "max_possible": 100, "normalized": 0.698, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "mlogiqa": {"raw_score": 65.9, "max_possible": 100, "normalized": 0.659, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 17"},
+        "ruler": {"raw_score": 83.5, "max_possible": 100, "normalized": 0.835, "metric": "thinking-mode average", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 23"}
+      },
+      "task_scores": {"coding": 0.542, "math": 0.788, "reasoning": 0.727, "creative": 0.611, "summarization": 0.735, "simple_qa": 0.837, "planning": 0.786, "data_analysis": 0.767, "translation": 0.698},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["livecodebench_v5"], "evidence_level": "direct", "confidence": "high"},
+        "math": {"benchmarks": ["math_500", "aime_2024", "aime_2025"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["gpqa_diamond", "zebra_logic", "auto_logi", "mlogiqa"], "evidence_level": "direct", "confidence": "high"},
+        "creative": {"benchmarks": ["creative_writing_v3"], "evidence_level": "direct", "confidence": "high"},
+        "summarization": {"benchmarks": ["writingbench"], "evidence_level": "adjacent", "confidence": "medium"},
+        "simple_qa": {"benchmarks": ["mmlu_redux"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["bfcl_v3", "auto_logi", "ifeval"], "evidence_level": "adjacent", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["mmlu_redux", "math_500", "aime_2024", "aime_2025", "livebench"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["mmmlu_14_languages"], "evidence_level": "adjacent", "confidence": "low"}
+      }
+    },
+    {
+      "model_id": "qwen2.5-coder:7b",
+      "benchmark_checkpoint": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "tier": "local",
+      "enabled": true,
+      "benchmarks": {
+        "humaneval": {"raw_score": 88.4, "max_possible": 100, "normalized": 0.884, "metric": "pass@1", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 16"},
+        "humaneval_plus": {"raw_score": 84.1, "max_possible": 100, "normalized": 0.841, "metric": "pass@1", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 16"},
+        "gsm8k": {"raw_score": 86.7, "max_possible": 100, "normalized": 0.867, "metric": "accuracy", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 20"},
+        "math_hendrycks": {"raw_score": 66.8, "max_possible": 100, "normalized": 0.668, "metric": "accuracy", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 20"},
+        "mmlu": {"raw_score": 68.7, "max_possible": 100, "normalized": 0.687, "metric": "accuracy", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 20"},
+        "gpqa": {"raw_score": 35.6, "max_possible": 100, "normalized": 0.356, "metric": "accuracy", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 20"},
+        "ifeval": {"raw_score": 58.6, "max_possible": 100, "normalized": 0.586, "metric": "strict prompt accuracy", "source": "https://arxiv.org/pdf/2409.12186", "source_detail": "Table 20"},
+        "okapi_mmlu_parent_proxy": {"raw_score": 66.98, "max_possible": 100, "normalized": 0.6698, "metric": "translated MMLU accuracy for Qwen2.5-7B-Instruct parent-size checkpoint", "source": "https://arxiv.org/pdf/2412.15115", "source_detail": "Table 14; family proxy"},
+        "mt_bench_parent_proxy": {"raw_score": 8.75, "max_possible": 10, "normalized": 0.875, "metric": "Qwen2.5-7B-Instruct MT-Bench", "source": "https://arxiv.org/pdf/2412.15115", "source_detail": "Table 8; family proxy"}
+      },
+      "task_scores": {"coding": 0.884, "math": 0.768, "reasoning": 0.356, "creative": 0.731, "summarization": 0.731, "simple_qa": 0.687, "planning": 0.586, "data_analysis": 0.645, "translation": 0.67},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["humaneval"], "evidence_level": "direct", "confidence": "high"},
+        "math": {"benchmarks": ["gsm8k", "math_hendrycks"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["gpqa"], "evidence_level": "direct", "confidence": "medium"},
+        "creative": {"benchmarks": ["ifeval", "mt_bench_parent_proxy"], "evidence_level": "family_proxy", "confidence": "low"},
+        "summarization": {"benchmarks": ["ifeval", "mt_bench_parent_proxy"], "evidence_level": "family_proxy", "confidence": "low"},
+        "simple_qa": {"benchmarks": ["mmlu"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["ifeval"], "evidence_level": "adjacent", "confidence": "low"},
+        "data_analysis": {"benchmarks": ["mmlu", "gsm8k", "math_hendrycks", "gpqa"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["okapi_mmlu_parent_proxy"], "evidence_level": "family_proxy", "confidence": "low"}
+      }
+    },
+    {
+      "model_id": "deepseek-r1:7b",
+      "benchmark_checkpoint": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+      "tier": "local",
+      "enabled": true,
+      "benchmarks": {
+        "aime_2024": {"raw_score": 55.5, "max_possible": 100, "normalized": 0.555, "metric": "pass@1", "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"},
+        "math_500": {"raw_score": 92.8, "max_possible": 100, "normalized": 0.928, "metric": "pass@1", "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"},
+        "gpqa_diamond": {"raw_score": 49.1, "max_possible": 100, "normalized": 0.491, "metric": "pass@1", "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"},
+        "livecodebench": {"raw_score": 37.6, "max_possible": 100, "normalized": 0.376, "metric": "pass@1", "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"},
+        "a_eval_text_understanding_tier": {"raw_score": "D", "max_possible": "A+", "normalized": 0.5, "metric": "published capability tier converted with ordinal_tier mapping", "source": "https://arxiv.org/abs/2502.11164", "source_detail": "Table 2"},
+        "a_eval_information_extraction_tier": {"raw_score": "D", "max_possible": "A+", "normalized": 0.5, "metric": "published capability tier converted with ordinal_tier mapping", "source": "https://arxiv.org/abs/2502.11164", "source_detail": "Table 2"},
+        "a_eval_text_generation_tier": {"raw_score": "D", "max_possible": "A+", "normalized": 0.5, "metric": "published capability tier converted with ordinal_tier mapping", "source": "https://arxiv.org/abs/2502.11164", "source_detail": "Table 2"},
+        "a_eval_logical_reasoning_tier": {"raw_score": "C", "max_possible": "A+", "normalized": 0.675, "metric": "published capability tier converted with ordinal_tier mapping", "source": "https://arxiv.org/abs/2502.11164", "source_detail": "Table 2"},
+        "a_eval_task_planning_tier": {"raw_score": "C", "max_possible": "A+", "normalized": 0.675, "metric": "published capability tier converted with ordinal_tier mapping", "source": "https://arxiv.org/abs/2502.11164", "source_detail": "Table 2"}
+      },
+      "task_scores": {"coding": 0.376, "math": 0.742, "reasoning": 0.583, "creative": 0.5, "summarization": 0.5, "simple_qa": 0.5, "planning": 0.675, "data_analysis": 0.619, "translation": 0.5},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["livecodebench"], "evidence_level": "direct", "confidence": "high"},
+        "math": {"benchmarks": ["aime_2024", "math_500"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["gpqa_diamond", "a_eval_logical_reasoning_tier"], "evidence_level": "ordinal_proxy", "confidence": "medium"},
+        "creative": {"benchmarks": ["a_eval_text_generation_tier"], "evidence_level": "ordinal_proxy", "confidence": "low"},
+        "summarization": {"benchmarks": ["a_eval_text_understanding_tier"], "evidence_level": "ordinal_proxy", "confidence": "low"},
+        "simple_qa": {"benchmarks": ["a_eval_text_understanding_tier"], "evidence_level": "ordinal_proxy", "confidence": "low"},
+        "planning": {"benchmarks": ["a_eval_task_planning_tier"], "evidence_level": "ordinal_proxy", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["aime_2024", "math_500", "gpqa_diamond", "a_eval_information_extraction_tier"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["a_eval_text_understanding_tier"], "evidence_level": "ordinal_proxy", "confidence": "very_low", "note": "No direct translation score was found; this is a conservative general-language proxy."}
+      }
+    },
+    {
+      "model_id": "llama-3.1-8b-instant",
+      "benchmark_checkpoint": "meta-llama/Llama-3.1-8B-Instruct",
+      "tier": "cloud",
+      "enabled": true,
+      "benchmarks": {
+        "humaneval": {"raw_score": 72.6, "max_possible": 100, "normalized": 0.726, "metric": "0-shot pass@1", "source": "https://arxiv.org/pdf/2407.21783"},
+        "mmlu": {"raw_score": 69.4, "max_possible": 100, "normalized": 0.694, "metric": "5-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "open_rewrite": {"raw_score": 40.9, "max_possible": 100, "normalized": 0.409, "metric": "ROUGE-L", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "tldr9_plus": {"raw_score": 17.2, "max_possible": 100, "normalized": 0.172, "metric": "ROUGE-L", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "ifeval": {"raw_score": 80.4, "max_possible": 100, "normalized": 0.804, "metric": "average loose/strict prompt and instruction accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "gsm8k": {"raw_score": 84.5, "max_possible": 100, "normalized": 0.845, "metric": "8-shot CoT exact match", "source": "https://arxiv.org/pdf/2407.21783"},
+        "math_hendrycks": {"raw_score": 51.9, "max_possible": 100, "normalized": 0.519, "metric": "0-shot CoT", "source": "https://arxiv.org/pdf/2407.21783"},
+        "arc_challenge": {"raw_score": 83.4, "max_possible": 100, "normalized": 0.834, "metric": "0-shot accuracy", "source": "https://arxiv.org/pdf/2407.21783"},
+        "gpqa": {"raw_score": 32.8, "max_possible": 100, "normalized": 0.328, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "hellaswag": {"raw_score": 78.7, "max_possible": 100, "normalized": 0.787, "metric": "0-shot accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "bfcl_v2": {"raw_score": 67.1, "max_possible": 100, "normalized": 0.671, "metric": "tool-use accuracy", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"},
+        "mgsm": {"raw_score": 68.9, "max_possible": 100, "normalized": 0.689, "metric": "multilingual exact match", "source": "https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct#benchmarks---english-text"}
+      },
+      "task_scores": {"coding": 0.726, "math": 0.682, "reasoning": 0.65, "creative": 0.409, "summarization": 0.172, "simple_qa": 0.694, "planning": 0.738, "data_analysis": 0.688, "translation": 0.689},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["humaneval"], "evidence_level": "direct", "confidence": "high"},
+        "math": {"benchmarks": ["gsm8k", "math_hendrycks"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["arc_challenge", "gpqa", "hellaswag"], "evidence_level": "direct", "confidence": "high"},
+        "creative": {"benchmarks": ["open_rewrite"], "evidence_level": "adjacent", "confidence": "medium"},
+        "summarization": {"benchmarks": ["tldr9_plus"], "evidence_level": "direct", "confidence": "high"},
+        "simple_qa": {"benchmarks": ["mmlu"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["bfcl_v2", "ifeval"], "evidence_level": "adjacent", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["mmlu", "gsm8k", "math_hendrycks"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["mgsm"], "evidence_level": "adjacent", "confidence": "low"}
+      }
+    },
+    {
+      "model_id": "qwen/qwen3-32b",
+      "benchmark_checkpoint": "Qwen/Qwen3-32B thinking mode",
+      "tier": "cloud",
+      "enabled": true,
+      "benchmarks": {
+        "mmlu_redux": {"raw_score": 90.9, "max_possible": 100, "normalized": 0.909, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "gpqa_diamond": {"raw_score": 68.4, "max_possible": 100, "normalized": 0.684, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "livebench": {"raw_score": 74.9, "max_possible": 100, "normalized": 0.749, "metric": "2024-11-25 score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "ifeval": {"raw_score": 85.0, "max_possible": 100, "normalized": 0.85, "metric": "strict prompt accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "arena_hard": {"raw_score": 93.8, "max_possible": 100, "normalized": 0.938, "metric": "win-rate score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "creative_writing_v3": {"raw_score": 81.0, "max_possible": 100, "normalized": 0.81, "metric": "score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "writingbench": {"raw_score": 7.9, "max_possible": 10, "normalized": 0.79, "metric": "judge score", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "math_500": {"raw_score": 97.2, "max_possible": 100, "normalized": 0.972, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "aime_2024": {"raw_score": 81.4, "max_possible": 100, "normalized": 0.814, "metric": "pass@1", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "aime_2025": {"raw_score": 72.9, "max_possible": 100, "normalized": 0.729, "metric": "pass@1", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "zebra_logic": {"raw_score": 88.8, "max_possible": 100, "normalized": 0.888, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "auto_logi": {"raw_score": 87.3, "max_possible": 100, "normalized": 0.873, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "bfcl_v3": {"raw_score": 70.3, "max_possible": 100, "normalized": 0.703, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "livecodebench_v5": {"raw_score": 65.7, "max_possible": 100, "normalized": 0.657, "metric": "pass@1", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "mmmlu_14_languages": {"raw_score": 80.6, "max_possible": 100, "normalized": 0.806, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "mlogiqa": {"raw_score": 76.3, "max_possible": 100, "normalized": 0.763, "metric": "accuracy", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 13"},
+        "ruler": {"raw_score": 91.0, "max_possible": 100, "normalized": 0.91, "metric": "thinking-mode average", "source": "https://arxiv.org/pdf/2505.09388", "source_detail": "Table 23"}
+      },
+      "task_scores": {"coding": 0.657, "math": 0.838, "reasoning": 0.802, "creative": 0.81, "summarization": 0.79, "simple_qa": 0.909, "planning": 0.809, "data_analysis": 0.832, "translation": 0.806},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["livecodebench_v5"], "evidence_level": "direct", "confidence": "high"},
+        "math": {"benchmarks": ["math_500", "aime_2024", "aime_2025"], "evidence_level": "direct", "confidence": "high"},
+        "reasoning": {"benchmarks": ["gpqa_diamond", "zebra_logic", "auto_logi", "mlogiqa"], "evidence_level": "direct", "confidence": "high"},
+        "creative": {"benchmarks": ["creative_writing_v3"], "evidence_level": "direct", "confidence": "high"},
+        "summarization": {"benchmarks": ["writingbench"], "evidence_level": "adjacent", "confidence": "medium"},
+        "simple_qa": {"benchmarks": ["mmlu_redux"], "evidence_level": "direct", "confidence": "high"},
+        "planning": {"benchmarks": ["bfcl_v3", "auto_logi", "ifeval"], "evidence_level": "adjacent", "confidence": "medium"},
+        "data_analysis": {"benchmarks": ["mmlu_redux", "math_500", "aime_2024", "aime_2025", "livebench"], "evidence_level": "adjacent", "confidence": "medium"},
+        "translation": {"benchmarks": ["mmmlu_14_languages"], "evidence_level": "adjacent", "confidence": "low"}
+      }
+    },
+    {
+      "model_id": "gemini-3.5-flash",
+      "benchmark_checkpoint": "Gemini 3 Flash provisional proxy",
+      "tier": "cloud",
+      "enabled": true,
+      "model_resolution": {
+        "status": "configured_id_not_found",
+        "configured_id": "gemini-3.5-flash",
+        "closest_documented_model": "Gemini 3 Flash",
+        "note": "Google released Gemini 3 Flash on 2025-12-17. No official Gemini 3.5 Flash model was found as of 2026-06-21. Replace this proxy when the configured API model ID is corrected."
+      },
+      "benchmarks": {
+        "swe_bench_verified": {"raw_score": 78.0, "max_possible": 100, "normalized": 0.78, "metric": "resolved rate", "source": "https://www.androidcentral.com/apps-software/ai/gemini-3-flash-googles-lightweight-ai-model-stuns-with-raw-speed-in-ai-mode-and-more", "source_quality": "secondary report of Google launch results"},
+        "gpqa_diamond": {"raw_score": 90.4, "max_possible": 100, "normalized": 0.904, "metric": "accuracy", "source": "https://www.androidcentral.com/apps-software/ai/gemini-3-flash-googles-lightweight-ai-model-stuns-with-raw-speed-in-ai-mode-and-more", "source_quality": "secondary report of Google launch results"},
+        "humanitys_last_exam": {"raw_score": 33.7, "max_possible": 100, "normalized": 0.337, "metric": "accuracy without tools", "source": "https://www.androidcentral.com/apps-software/ai/gemini-3-flash-googles-lightweight-ai-model-stuns-with-raw-speed-in-ai-mode-and-more", "source_quality": "secondary report of Google launch results"},
+        "mmmu_pro": {"raw_score": 81.2, "max_possible": 100, "normalized": 0.812, "metric": "accuracy", "source": "https://www.androidcentral.com/apps-software/ai/gemini-3-flash-googles-lightweight-ai-model-stuns-with-raw-speed-in-ai-mode-and-more", "source_quality": "secondary report of Google launch results"},
+        "available_benchmark_composite": {"raw_score": 70.825, "max_possible": 100, "normalized": 0.70825, "metric": "mean of SWE-bench Verified, GPQA Diamond, Humanity's Last Exam, and MMMU-Pro", "source": "derived from benchmark entries in this record"}
+      },
+      "task_scores": {"coding": 0.78, "math": 0.621, "reasoning": 0.904, "creative": 0.708, "summarization": 0.708, "simple_qa": 0.708, "planning": 0.812, "data_analysis": 0.812, "translation": 0.708},
+      "task_score_evidence": {
+        "coding": {"benchmarks": ["swe_bench_verified"], "evidence_level": "direct", "confidence": "medium", "note": "Repository-level software engineering rather than short code generation."},
+        "math": {"benchmarks": ["gpqa_diamond", "humanitys_last_exam"], "evidence_level": "adjacent", "confidence": "low"},
+        "reasoning": {"benchmarks": ["gpqa_diamond"], "evidence_level": "direct", "confidence": "medium"},
+        "creative": {"benchmarks": ["available_benchmark_composite"], "evidence_level": "adjacent", "confidence": "very_low"},
+        "summarization": {"benchmarks": ["available_benchmark_composite"], "evidence_level": "adjacent", "confidence": "very_low"},
+        "simple_qa": {"benchmarks": ["available_benchmark_composite"], "evidence_level": "adjacent", "confidence": "low"},
+        "planning": {"benchmarks": ["mmmu_pro"], "evidence_level": "adjacent", "confidence": "low"},
+        "data_analysis": {"benchmarks": ["mmmu_pro"], "evidence_level": "adjacent", "confidence": "low"},
+        "translation": {"benchmarks": ["available_benchmark_composite"], "evidence_level": "adjacent", "confidence": "very_low", "note": "No direct translation benchmark was found in the available launch results."}
+      }
+    }
+  ]
+}

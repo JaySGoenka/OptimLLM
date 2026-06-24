@@ -27,12 +27,14 @@ module.exports = async function handler(request, response) {
 
     // Route the request to the correct cloud provider, then send a consistent
     // response shape back to the browser.
-    const assistantMessage = await callProvider(model, messages);
+    const providerResult = await callProvider(model, messages);
+    const assistantMessage = stripThinkContent(providerResult.content);
     return sendJson(response, 200, {
       message: {
         role: "assistant",
         content: assistantMessage
-      }
+      },
+      usage: providerResult.usage
     });
   } catch (error) {
     // Convert thrown errors into JSON so the frontend can show useful messages.
@@ -127,7 +129,14 @@ async function callGroq(model, messages) {
     throw createHttpError(502, "Groq returned an empty response.");
   }
 
-  return content;
+  return {
+    content,
+    usage: {
+      input_tokens: data.usage?.prompt_tokens ?? 0,
+      output_tokens: data.usage?.completion_tokens ?? 0,
+      total_tokens: data.usage?.total_tokens ?? 0
+    }
+  };
 }
 
 async function callGoogle(model, messages) {
@@ -168,7 +177,17 @@ async function callGoogle(model, messages) {
     throw createHttpError(502, "Google AI Studio returned an empty response.");
   }
 
-  return content;
+  return {
+    content,
+    usage: {
+      input_tokens: data.usageMetadata?.promptTokenCount ?? 0,
+      output_tokens: (
+        (data.usageMetadata?.candidatesTokenCount ?? 0)
+        + (data.usageMetadata?.thoughtsTokenCount ?? 0)
+      ),
+      total_tokens: data.usageMetadata?.totalTokenCount ?? 0
+    }
+  };
 }
 
 async function readRequestBody(request) {
@@ -222,6 +241,18 @@ function getUpstreamError(data, fallback) {
   }
 
   return fallback;
+}
+
+function stripThinkContent(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think\s*>/gi, "")
+    .replace(/<think\b[^>]*>[\s\S]*$/gi, "")
+    .replace(/<\/think\s*>/gi, "")
+    .trimStart();
 }
 
 function createHttpError(statusCode, message) {

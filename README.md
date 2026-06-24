@@ -14,7 +14,7 @@ Simple or private tasks can run locally through Ollama when the user's machine c
 - Detects installed local Ollama models.
 - Can download supported local models through Ollama.
 - Uses an optional local companion to read CPU, RAM, platform, and best-effort GPU details.
-- Uses a browser-loaded ML router model to classify prompt type, difficulty, privacy risk, and route preference.
+- Uses a hybrid semantic and classifier router to estimate task type, difficulty, privacy risk, and whether a stronger model is likely to outperform a local model.
 - Applies deterministic safeguards for privacy and hardware compatibility.
 
 ## How Routing Works
@@ -29,30 +29,37 @@ When `auto_router` is selected, OptimLLM follows this flow:
    - difficulty: easy, medium, or hard
    - privacy risk: low, medium, or high
 
-2. **Estimate complexity**
+2. **Estimate semantic model need**
+
+   When local auto mode is enabled, the companion installs a local embedding
+   model and the browser compares the prompt against labeled routing examples.
+   This produces a semantic strong-model win probability inspired by RouteLLM.
+
+3. **Estimate complexity**
 
    A separate policy engine scores prompt length, reasoning depth, scope,
    constraints, task requirements, referenced input size, classifier
    uncertainty, and out-of-vocabulary coverage. The learned classifier does not
    directly choose a model.
 
-3. **Apply safety and routing rules**
+4. **Apply safety and routing rules**
 
    The router does not rely on ML alone. It also checks for obvious sensitive content such as credentials, medical/legal/financial terms, customer data, emails, and similar private signals.
 
-   Local models are eligible only for easy prompts. Medium and hard prompts use
-   cloud models. Private medium or hard prompts cause the router to abstain
-   because automatic cloud use and medium/hard local use are both blocked.
+   Easy prompts prefer local models. With auto mode enabled, medium prompts use
+   the strongest hardware-compatible quality-tier-two local model and install it
+   on demand. Hard prompts use cloud models unless privacy rules require an
+   abstention.
 
-4. **Check available models**
+5. **Check available models**
 
    The app checks which local Ollama models are installed and which cloud routes are configured.
 
-5. **Check hardware fit**
+6. **Check hardware fit**
 
    If the local companion is running, the router filters local models by known hardware requirements such as RAM and GPU availability.
 
-6. **Rank models**
+7. **Rank models**
 
    Eligible models receive a capability score based on task fit, required
    quality tier, speed, cost, context capacity, uncertainty, model availability,
@@ -136,6 +143,11 @@ For hardware-aware local routing, also start the local companion:
 npm run companion
 ```
 
+The **Enable auto mode** button can then start Ollama, install
+`nomic-embed-text`, install the strongest compatible default local chat model,
+and install task-specific local models on demand. Browsers cannot install the
+native companion itself; production distribution requires a signed installer.
+
 In the app:
 
 1. Select `auto_router`, the `Local` filter, or a specific Ollama route.
@@ -171,11 +183,16 @@ python3 -m pip install -r requirements-router.txt
 npm run train:router
 ```
 
-The trainer builds browser-loadable TF-IDF logistic-regression classifiers for
-task type, difficulty, and privacy. The frontend uses
-the prompt predictions together with deterministic privacy checks, installed
-models, hardware compatibility, task complexity, and confidence/coverage
-thresholds to choose the final route.
+The existing trainer builds browser-loadable TF-IDF logistic-regression
+classifiers for task type, difficulty, and privacy. Router V2 supplements these
+with local semantic embeddings and a RouteLLM-inspired strong-model probability.
+See `docs/router-v2.md` for the preference-data migration plan.
+
+Normalize the public RouteLLM preference datasets with:
+
+```bash
+python scripts/prepare_preference_data.py
+```
 
 Evaluate the routing policy independently from classifier training:
 

@@ -3,101 +3,86 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f7f5" />
     <title>OptimLLM</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">OptimLLM</p>
-          <h1>Model Router</h1>
+      <aside class="sidebar" id="sidebar" aria-label="Chat history">
+        <div class="sidebar-header">
+          <a class="brand" href="/" aria-label="OptimLLM home">
+            <span class="brand-mark">O</span>
+            <span>OptimLLM</span>
+          </a>
+          <button class="icon-button mobile-only" id="closeSidebarButton" type="button" aria-label="Close sidebar">×</button>
         </div>
-        <div class="status-stack">
-          <div class="status-pill" id="ollamaStatus">Checking Ollama</div>
-          <div class="status-pill" id="companionStatus">Checking Companion</div>
+
+        <button class="new-chat-button" id="newChatButton" type="button">
+          <span aria-hidden="true">＋</span>
+          New chat
+        </button>
+
+        <div class="history-label">Recent</div>
+        <nav class="chat-history" id="chatHistory" aria-label="Previous chats"></nav>
+
+        <div class="sidebar-footer">
+          <button class="auto-mode-button" id="enableAutoModeButton" type="button">
+            <span class="auto-mode-icon">✦</span>
+            <span>
+              <strong>Enable auto mode</strong>
+              <small id="autoModeStatus">Configure local intelligence</small>
+            </span>
+          </button>
+          <button class="export-feedback-button" id="exportFeedbackButton" type="button">
+            <span>Export router data</span>
+            <small id="feedbackCount">0 examples</small>
+          </button>
+          <div class="model-picker" id="modelPicker">
+            <div class="model-menu" id="modelMenu" role="menu" aria-label="Choose a model" hidden></div>
+          </div>
+          <button class="routing-status" id="modelPickerButton" type="button" aria-haspopup="menu" aria-expanded="false">
+            <span class="status-dot" id="routingStatusDot"></span>
+            <span class="routing-status-copy">
+              <strong id="routingModeLabel">Automatic routing</strong>
+              <small id="routingStatusText">Finding the best model</small>
+            </span>
+            <span class="routing-chevron" aria-hidden="true">⌃</span>
+          </button>
         </div>
-      </header>
+      </aside>
 
-      <section class="workspace">
-        <aside class="sidebar" aria-label="Model filters">
-          <div class="segmented" role="tablist" aria-label="Provider filter">
-            <button class="segment active" type="button" data-provider-filter="all">All</button>
-            <button class="segment" type="button" data-provider-filter="ollama">Local</button>
-            <button class="segment" type="button" data-provider-filter="cloud">Cloud</button>
+      <section class="main-panel">
+        <header class="topbar">
+          <button class="icon-button menu-button" id="openSidebarButton" type="button" aria-label="Open sidebar">☰</button>
+          <div class="chat-title-wrap">
+            <h1 id="activeChatTitle">New chat</h1>
+            <p id="selectedModelSummary">OptimLLM chooses the best available model automatically.</p>
+          </div>
+          <button class="text-button" id="clearChatButton" type="button">Clear chat</button>
+        </header>
+
+        <section class="chat-panel" aria-label="OptimLLM chat">
+          <div id="messages" class="messages" aria-live="polite">
+            <div class="empty-state" id="emptyState">
+              <div class="empty-mark">O</div>
+              <h2>How can I help?</h2>
+              <p>Ask a question, explore an idea, or work through a problem.</p>
+            </div>
           </div>
 
-          <label class="field-label" for="routeSelect">Route</label>
-          <select id="routeSelect"></select>
-
-          <div class="local-controls">
-            <button id="refreshOllamaButton" type="button">Refresh Local Models</button>
-            <button id="pullModelButton" type="button">Download Selected Local Model</button>
-          </div>
-
-          <pre id="pullLog" class="log-panel" aria-live="polite"></pre>
-
-          <details class="local-setup" open>
-            <summary>Local Ollama setup</summary>
-            <div class="setup-grid">
-              <div>
-                <span class="setup-label">App origin</span>
-                <code id="appOriginLabel"></code>
-              </div>
-              <div>
-                <span class="setup-label">Local endpoint</span>
-                <code>http://localhost:11434</code>
-              </div>
-            </div>
-            <div class="setup-actions">
-              <a class="button-link" href="https://ollama.com/download" target="_blank" rel="noreferrer">Get Ollama</a>
-              <button id="copyStartCommandButton" type="button">Copy Start Command</button>
-              <button id="copyCorsCommandButton" type="button">Copy Vercel Access Command</button>
-            </div>
-            <pre id="setupCommand" class="command-panel"></pre>
-          </details>
-
-          <details class="local-setup" open>
-            <summary>System profile</summary>
-            <div class="setup-grid">
-              <div>
-                <span class="setup-label">Companion endpoint</span>
-                <code>http://127.0.0.1:43110</code>
-              </div>
-            </div>
-            <div class="setup-actions">
-              <button id="refreshCompanionButton" type="button">Refresh System Profile</button>
-              <button id="copyCompanionCommandButton" type="button">Copy Companion Command</button>
-            </div>
-            <pre id="systemProfilePanel" class="command-panel" aria-live="polite"></pre>
-          </details>
-
-          <div class="model-list-wrap" aria-label="Available models">
-            <div class="model-list-header">
-              <h2>Models</h2>
-              <span>Manual routes</span>
-            </div>
-            <div id="modelTableBody" class="model-list"></div>
-          </div>
-        </aside>
-
-        <section class="main-panel">
-          <section class="chat-panel" aria-label="Model chat">
-            <div class="chat-header">
-              <div>
-                <h2>Model Chat</h2>
-                <p id="selectedModelSummary"></p>
-              </div>
-              <button id="clearChatButton" type="button">Clear</button>
-            </div>
-            <div id="messages" class="messages" aria-live="polite"></div>
+          <div class="composer-wrap">
             <form id="chatForm" class="composer">
-              <textarea id="promptInput" rows="3" placeholder="Ask the selected model something"></textarea>
-              <button type="submit">Send</button>
+              <textarea id="promptInput" rows="1" placeholder="Message OptimLLM" aria-label="Message OptimLLM"></textarea>
+              <button class="send-button" type="submit" aria-label="Send message">
+                <span aria-hidden="true">↑</span>
+              </button>
             </form>
-          </section>
+            <p class="composer-note">OptimLLM can make mistakes. Check important information.</p>
+          </div>
         </section>
       </section>
+      <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     </main>
 
     <script type="module" src="/src/app.js"></script>

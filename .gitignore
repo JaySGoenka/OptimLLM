@@ -9,3 +9,10 @@ __pycache__/
 .env.local
 .env.*.local
 data/.phase2-cache/
+data/.cache-v3/
+data/lmsys-sample.jsonl
+data/lmsys-*.jsonl
+data/arena-preference*.jsonl
+data/local-cloud-classifier*-evaluation.json
+models/local-cloud-classifier*
+models/local-cloud-sw-*
